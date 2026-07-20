@@ -96,7 +96,13 @@ class AlarmService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        startPlayback(alarm)
+        val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+        val mode = if (isWatch) alarm.watchMode else alarm.phoneMode
+        startPlayback(
+            alarm,
+            playSound = mode == Alarm.MODE_SOUND_VIBRATE || mode == Alarm.MODE_SOUND,
+            vibrate = mode == Alarm.MODE_SOUND_VIBRATE || mode == Alarm.MODE_VIBRATE,
+        )
 
         // Klingel-Activity direkt öffnen (Vollbild), falls von der App registriert.
         AppRegistry.ringActivityClass?.let { cls ->
@@ -138,29 +144,33 @@ class AlarmService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun startPlayback(alarm: Alarm) {
-        try {
-            player = MediaPlayer().apply {
-                setDataSource(this@AlarmService, ToneResolver.resolve(this@AlarmService, alarm))
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                isLooping = true
-                prepare()
-                start()
+    private fun startPlayback(alarm: Alarm, playSound: Boolean, vibrate: Boolean) {
+        if (playSound) {
+            try {
+                player = MediaPlayer().apply {
+                    setDataSource(this@AlarmService, ToneResolver.resolve(this@AlarmService, alarm))
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Alarmton konnte nicht abgespielt werden, nur Vibration", e)
+                player = null
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Alarmton konnte nicht abgespielt werden, nur Vibration", e)
-            player = null
         }
-        try {
-            vibrator = getSystemService(Vibrator::class.java)
-            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
-        } catch (e: Exception) {
-            Log.w(TAG, "Vibration nicht möglich", e)
+        if (vibrate) {
+            try {
+                vibrator = getSystemService(Vibrator::class.java)
+                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
+            } catch (e: Exception) {
+                Log.w(TAG, "Vibration nicht möglich", e)
+            }
         }
     }
 

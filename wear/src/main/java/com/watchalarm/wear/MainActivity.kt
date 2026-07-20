@@ -185,6 +185,8 @@ private fun WatchEditor(
         initiallySelectedOption = initial?.minute ?: 0,
     )
     var phoneOnly by remember { mutableStateOf(initial?.phoneOnlyDismiss ?: false) }
+    var watchMode by remember { mutableStateOf(initial?.watchMode ?: Alarm.MODE_SOUND_VIBRATE) }
+    var phoneMode by remember { mutableStateOf(initial?.phoneMode ?: Alarm.MODE_SOUND_VIBRATE) }
 
     ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
         item { ListHeader { Text(if (initial == null) "Neuer Wecker" else "Bearbeiten") } }
@@ -221,6 +223,54 @@ private fun WatchEditor(
             )
         }
         item {
+            // Tippen wechselt zyklisch durch die Uhr-Modi.
+            Chip(
+                onClick = {
+                    watchMode = when (watchMode) {
+                        Alarm.MODE_SOUND_VIBRATE -> Alarm.MODE_VIBRATE
+                        Alarm.MODE_VIBRATE -> Alarm.MODE_SOUND
+                        else -> Alarm.MODE_SOUND_VIBRATE
+                    }
+                },
+                label = { Text("Uhr") },
+                secondaryLabel = {
+                    Text(
+                        when (watchMode) {
+                            Alarm.MODE_VIBRATE -> "Nur Vibration"
+                            Alarm.MODE_SOUND -> "Nur Ton"
+                            else -> "Ton + Vibration"
+                        }
+                    )
+                },
+                colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
+            // Tippen wechselt zyklisch durch die Handy-Modi.
+            Chip(
+                onClick = {
+                    phoneMode = when (phoneMode) {
+                        Alarm.MODE_SOUND_VIBRATE -> Alarm.MODE_VIBRATE
+                        Alarm.MODE_VIBRATE -> Alarm.MODE_OFF
+                        else -> Alarm.MODE_SOUND_VIBRATE
+                    }
+                },
+                label = { Text("Handy") },
+                secondaryLabel = {
+                    Text(
+                        when (phoneMode) {
+                            Alarm.MODE_VIBRATE -> "Nur Vibration"
+                            Alarm.MODE_OFF -> "Gar nicht"
+                            else -> "Ton + Vibration"
+                        }
+                    )
+                },
+                colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -233,6 +283,8 @@ private fun WatchEditor(
                                 minute = minuteState.selectedOption,
                                 enabled = true,
                                 phoneOnlyDismiss = phoneOnly,
+                                watchMode = watchMode,
+                                phoneMode = phoneMode,
                             )
                         )
                     },

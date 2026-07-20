@@ -224,6 +224,13 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> 
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+                if (alarm.phoneMode == Alarm.MODE_OFF) {
+                    Text(
+                        "🔕 Klingelt nur auf der Uhr",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)
         }
@@ -267,6 +274,8 @@ private fun EditorScreen(
     var snoozeMinutes by remember { mutableStateOf(initial?.snoozeMinutes ?: 5) }
     var maxSnoozes by remember { mutableStateOf(initial?.maxSnoozes ?: 3) }
     var phoneOnly by remember { mutableStateOf(initial?.phoneOnlyDismiss ?: false) }
+    var watchMode by remember { mutableStateOf(initial?.watchMode ?: Alarm.MODE_SOUND_VIBRATE) }
+    var phoneMode by remember { mutableStateOf(initial?.phoneMode ?: Alarm.MODE_SOUND_VIBRATE) }
     var showToneDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -343,6 +352,53 @@ private fun EditorScreen(
             HorizontalDivider()
 
             Column {
+                Text("Uhr klingelt", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        Alarm.MODE_SOUND_VIBRATE to "Ton + Vibration",
+                        Alarm.MODE_VIBRATE to "Nur Vibration",
+                        Alarm.MODE_SOUND to "Nur Ton",
+                    ).forEach { (mode, name) ->
+                        FilterChip(
+                            selected = watchMode == mode,
+                            onClick = { watchMode = mode },
+                            label = { Text(name) },
+                        )
+                    }
+                }
+            }
+
+            Column {
+                Text("Handy klingelt", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        Alarm.MODE_SOUND_VIBRATE to "Ton + Vibration",
+                        Alarm.MODE_VIBRATE to "Nur Vibration",
+                        Alarm.MODE_OFF to "Gar nicht",
+                    ).forEach { (mode, name) ->
+                        FilterChip(
+                            selected = phoneMode == mode,
+                            onClick = { phoneMode = mode },
+                            label = { Text(name) },
+                        )
+                    }
+                }
+                if (phoneMode == Alarm.MODE_OFF && phoneOnly) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Das Handy bleibt stumm, zeigt aber eine lautlose " +
+                            "Stopp-Ansicht, solange die Uhr klingelt.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
+            Column {
                 Text("Snooze-Dauer", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -403,6 +459,8 @@ private fun EditorScreen(
                             snoozeMinutes = snoozeMinutes,
                             maxSnoozes = maxSnoozes,
                             phoneOnlyDismiss = phoneOnly,
+                            watchMode = watchMode,
+                            phoneMode = phoneMode,
                         )
                     )
                 },

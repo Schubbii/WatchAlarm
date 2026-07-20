@@ -11,6 +11,12 @@ Wegdrücken am Handgelenk.
 - ⏰ Vollständige Wecker-App: Uhrzeit, Bezeichnung, Wochentags-Wiederholung
 - 🔔 Alarmton-Auswahl (Systemtöne des Geräts)
 - 😴 Snooze konfigurierbar: Dauer (3–30 min) und maximale Anzahl (0–10×)
+- ⌚ Klingel-Modus pro Gerät und Alarm:
+  - **Uhr**: Ton + Vibration, nur Vibration oder nur Ton
+  - **Handy**: Ton + Vibration, nur Vibration oder gar nicht
+  - Steht das Handy auf „gar nicht" und ist der Alarm „nur am Handy
+    ausschaltbar", zeigt das Handy eine **lautlose Stopp-Ansicht**,
+    während die Uhr klingelt/vibriert
 - 📱 **„Nur am Handy ausschaltbar"** — Schalter pro Alarm:
   - *Aus*: Alarm kann auf Uhr **und** Handy gestoppt werden (Stopp auf einem
     Gerät stoppt beide)
