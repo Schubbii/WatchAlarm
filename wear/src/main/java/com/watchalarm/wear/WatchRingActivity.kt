@@ -63,6 +63,7 @@ class WatchRingActivity : ComponentActivity() {
 
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val filter = IntentFilter(SyncContract.ACTION_RING_STOPPED)
         if (Build.VERSION.SDK_INT >= 33) {

@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.ToneResolver
 import java.util.Calendar
 
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
 private fun AppRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
+    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var showEditor by remember { mutableStateOf(false) }
 
@@ -110,7 +112,15 @@ private fun AppRoot() {
             alarms = AlarmStore.getAlarms(context)
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        val runtimePrefs = RuntimeStore.prefs(context)
+        val runtimeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            ringingId = RuntimeStore.getRingingAlarmId(context)
+        }
+        runtimePrefs.registerOnSharedPreferenceChangeListener(runtimeListener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            runtimePrefs.unregisterOnSharedPreferenceChangeListener(runtimeListener)
+        }
     }
 
     if (showEditor) {
@@ -133,6 +143,13 @@ private fun AppRoot() {
     } else {
         ListScreen(
             alarms = alarms.sortedWith(compareBy({ it.hour }, { it.minute })),
+            ringingId = ringingId,
+            onOpenRinging = { id ->
+                context.startActivity(
+                    android.content.Intent(context, AlarmActivity::class.java)
+                        .putExtra(com.watchalarm.core.SyncContract.EXTRA_ALARM_ID, id)
+                )
+            },
             onAdd = { editing = null; showEditor = true },
             onEdit = { editing = it; showEditor = true },
             onToggle = { alarm, enabled ->
@@ -150,6 +167,8 @@ private fun AppRoot() {
 @Composable
 private fun ListScreen(
     alarms: List<Alarm>,
+    ringingId: String?,
+    onOpenRinging: (String) -> Unit,
     onAdd: () -> Unit,
     onEdit: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
@@ -162,25 +181,45 @@ private fun ListScreen(
             }
         },
     ) { padding ->
-        if (alarms.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (ringingId != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                        .clickable { onOpenRinging(ringingId) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Text(
+                        "🔔 Alarm klingelt — tippen zum Ausschalten",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(alarms, key = { it.id }) { alarm ->
-                    AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+            if (alarms.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(alarms, key = { it.id }) { alarm ->
+                        AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                    }
                 }
             }
         }

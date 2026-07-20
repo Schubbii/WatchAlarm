@@ -104,19 +104,6 @@ class AlarmService : Service() {
             vibrate = mode == Alarm.MODE_SOUND_VIBRATE || mode == Alarm.MODE_VIBRATE,
         )
 
-        // Klingel-Activity direkt öffnen (Vollbild), falls von der App registriert.
-        AppRegistry.ringActivityClass?.let { cls ->
-            try {
-                startActivity(
-                    Intent(this, cls)
-                        .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            } catch (e: Exception) {
-                Log.w(TAG, "Klingel-Activity konnte nicht gestartet werden", e)
-            }
-        }
-
         handler.removeCallbacks(timeoutRunnable)
         handler.postDelayed(timeoutRunnable, RING_TIMEOUT_MS)
     }
@@ -198,7 +185,6 @@ class AlarmService : Service() {
             description = getString(R.string.core_channel_description)
             setSound(null, null) // Ton kommt vom MediaPlayer
             enableVibration(false)
-            setBypassDnd(true)
         }
         manager.createNotificationChannel(channel)
     }
@@ -325,10 +311,9 @@ class AlarmService : Service() {
             val alarm = AlarmStore.getAlarm(context, alarmId) ?: return
             val count = RuntimeStore.getSnoozeCount(context, alarmId) + 1
             RuntimeStore.setSnoozeCount(context, alarmId, count)
-            AlarmScheduler.scheduleSnooze(
-                context, alarm,
-                System.currentTimeMillis() + alarm.snoozeMinutes * 60_000L
-            )
+            val triggerAt = System.currentTimeMillis() + alarm.snoozeMinutes * 60_000L
+            RuntimeStore.setSnoozeUntil(context, alarmId, triggerAt)
+            AlarmScheduler.scheduleSnooze(context, alarm, triggerAt)
             if (notifyPeer) {
                 AlarmSync.sendMessageToAll(context, SyncContract.PATH_SNOOZE, alarmId)
             }

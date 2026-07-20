@@ -1,8 +1,13 @@
 package com.watchalarm.wear
 
+import android.Manifest
+import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -50,11 +55,23 @@ import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.RuntimeStore
 
 class MainActivity : ComponentActivity() {
 
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Ohne diese Berechtigung zeigt das System ab API 33 weder die
+        // Alarm-Benachrichtigung noch den Vollbild-Klingelbildschirm!
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         AlarmSync.syncNow(this)
         setContent {
             MaterialTheme {
@@ -68,6 +85,7 @@ class MainActivity : ComponentActivity() {
 private fun WearApp() {
     val context = LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
+    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var showEditor by remember { mutableStateOf(false) }
 
@@ -77,7 +95,15 @@ private fun WearApp() {
             alarms = AlarmStore.getAlarms(context)
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        val runtimePrefs = RuntimeStore.prefs(context)
+        val runtimeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            ringingId = RuntimeStore.getRingingAlarmId(context)
+        }
+        runtimePrefs.registerOnSharedPreferenceChangeListener(runtimeListener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            runtimePrefs.unregisterOnSharedPreferenceChangeListener(runtimeListener)
+        }
     }
 
     if (showEditor) {
@@ -100,6 +126,13 @@ private fun WearApp() {
     } else {
         WatchList(
             alarms = alarms.sortedWith(compareBy({ it.hour }, { it.minute })),
+            ringingId = ringingId,
+            onOpenRinging = { id ->
+                context.startActivity(
+                    Intent(context, WatchRingActivity::class.java)
+                        .putExtra(com.watchalarm.core.SyncContract.EXTRA_ALARM_ID, id)
+                )
+            },
             onAdd = { editing = null; showEditor = true },
             onEdit = { editing = it; showEditor = true },
             onToggle = { alarm, enabled ->
@@ -116,6 +149,8 @@ private fun WearApp() {
 @Composable
 private fun WatchList(
     alarms: List<Alarm>,
+    ringingId: String?,
+    onOpenRinging: (String) -> Unit,
     onAdd: () -> Unit,
     onEdit: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
@@ -124,6 +159,18 @@ private fun WatchList(
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
             item { ListHeader { Text("Wecker") } }
+            if (ringingId != null) {
+                item {
+                    Chip(
+                        onClick = { onOpenRinging(ringingId) },
+                        label = { Text("🔔 Alarm klingelt — öffnen") },
+                        colors = ChipDefaults.primaryChipColors(
+                            backgroundColor = MaterialTheme.colors.error,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             items(alarms, key = { it.id }) { alarm ->
                 SplitToggleChip(
                     checked = alarm.enabled,

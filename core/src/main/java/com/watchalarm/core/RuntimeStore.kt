@@ -12,8 +12,9 @@ object RuntimeStore {
     private const val PREFS = "watchalarm_runtime"
     private const val KEY_RINGING = "ringing_alarm_id"
     private const val KEY_SNOOZE_PREFIX = "snoozes_"
+    private const val KEY_SNOOZE_UNTIL_PREFIX = "snooze_until_"
 
-    private fun prefs(context: Context): SharedPreferences =
+    fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun getRingingAlarmId(context: Context): String? =
@@ -33,6 +34,21 @@ object RuntimeStore {
     }
 
     fun clearSnoozeCount(context: Context, alarmId: String) {
-        prefs(context).edit().remove(KEY_SNOOZE_PREFIX + alarmId).commit()
+        prefs(context).edit()
+            .remove(KEY_SNOOZE_PREFIX + alarmId)
+            .remove(KEY_SNOOZE_UNTIL_PREFIX + alarmId)
+            .commit()
+    }
+
+    /** Zeitpunkt (Millis), zu dem ein laufender Snooze erneut klingeln soll. */
+    fun getSnoozeUntil(context: Context, alarmId: String): Long =
+        prefs(context).getLong(KEY_SNOOZE_UNTIL_PREFIX + alarmId, 0L)
+
+    fun setSnoozeUntil(context: Context, alarmId: String, triggerAtMillis: Long) {
+        prefs(context).edit().putLong(KEY_SNOOZE_UNTIL_PREFIX + alarmId, triggerAtMillis).commit()
+    }
+
+    fun clearSnoozeUntil(context: Context, alarmId: String) {
+        prefs(context).edit().remove(KEY_SNOOZE_UNTIL_PREFIX + alarmId).commit()
     }
 }

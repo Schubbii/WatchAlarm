@@ -48,6 +48,7 @@ class AlarmActivity : ComponentActivity() {
 
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         getSystemService(KeyguardManager::class.java)?.requestDismissKeyguard(this, null)
 
         val filter = IntentFilter(SyncContract.ACTION_RING_STOPPED)

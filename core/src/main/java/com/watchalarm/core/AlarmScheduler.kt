@@ -19,7 +19,14 @@ object AlarmScheduler {
 
     fun rescheduleAll(context: Context) {
         AlarmStore.getAlarms(context).forEach { alarm ->
-            if (alarm.enabled) schedule(context, alarm) else cancel(context, alarm.id)
+            when {
+                !alarm.enabled -> cancel(context, alarm.id)
+                // Laufenden Snooze nicht verwerfen (überlebt so auch
+                // App-/Geräte-Neustarts und Sync-Updates).
+                RuntimeStore.getSnoozeUntil(context, alarm.id) > System.currentTimeMillis() ->
+                    scheduleSnooze(context, alarm, RuntimeStore.getSnoozeUntil(context, alarm.id))
+                else -> schedule(context, alarm)
+            }
         }
     }
 
