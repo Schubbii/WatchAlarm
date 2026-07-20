@@ -34,7 +34,9 @@ import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import androidx.core.content.ContextCompat
 import com.watchalarm.core.Alarm
+import com.watchalarm.core.AlarmScheduler
 import com.watchalarm.core.AlarmService
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
@@ -80,18 +82,25 @@ class WatchRingActivity : ComponentActivity() {
             return
         }
 
+        // Auch von hier den Service starten: Falls der Receiver-Pfad vom
+        // System blockiert wurde, klingelt es trotzdem (doppelter Start ist
+        // im Service abgefangen).
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, AlarmService::class.java)
+                .setAction(AlarmService.ACTION_START)
+                .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
+                .putExtra(
+                    AlarmScheduler.EXTRA_IS_SNOOZE,
+                    intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
+                )
+        )
+
         setContent {
             MaterialTheme {
                 RingScreen(alarm)
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        val ringing = RuntimeStore.getRingingAlarmId(this)
-        val shownId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID)
-        if (ringing == null || ringing != shownId) finish()
     }
 
     override fun onDestroy() {

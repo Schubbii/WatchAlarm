@@ -78,6 +78,8 @@ class AlarmService : Service() {
     // ---------------------------------------------------------------- ring
 
     private fun startRinging(alarmId: String, isSnooze: Boolean) {
+        // Receiver UND Klingel-Activity starten den Service — nur einmal klingeln.
+        if (alarmId == currentAlarmId) return
         val alarm = AlarmStore.getAlarm(this, alarmId)
         if (alarm == null) {
             stopSelf()
@@ -90,10 +92,16 @@ class AlarmService : Service() {
 
         createChannel()
         val notification = buildNotification(alarm)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        when {
+            // systemExempted ist der für Wecker-Apps (USE_EXACT_ALARM)
+            // vorgesehene Typ; mediaPlayback darf ab API 34 nicht mehr aus
+            // dem Hintergrund gestartet werden.
+            Build.VERSION.SDK_INT >= 34 ->
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            else ->
+                startForeground(NOTIFICATION_ID, notification)
         }
 
         val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)

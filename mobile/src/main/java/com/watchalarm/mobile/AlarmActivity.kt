@@ -1,6 +1,5 @@
 package com.watchalarm.mobile
 
-import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -28,7 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.watchalarm.core.Alarm
+import com.watchalarm.core.AlarmScheduler
 import com.watchalarm.core.AlarmService
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.RuntimeStore
@@ -49,7 +50,6 @@ class AlarmActivity : ComponentActivity() {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        getSystemService(KeyguardManager::class.java)?.requestDismissKeyguard(this, null)
 
         val filter = IntentFilter(SyncContract.ACTION_RING_STOPPED)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -66,6 +66,20 @@ class AlarmActivity : ComponentActivity() {
             return
         }
 
+        // Auch von hier den Service starten: Falls der Receiver-Pfad vom
+        // System blockiert wurde, klingelt es trotzdem (doppelter Start ist
+        // im Service abgefangen).
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, AlarmService::class.java)
+                .setAction(AlarmService.ACTION_START)
+                .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
+                .putExtra(
+                    AlarmScheduler.EXTRA_IS_SNOOZE,
+                    intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
+                )
+        )
+
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -73,14 +87,6 @@ class AlarmActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Alarm inzwischen anderweitig beendet (z.B. von der Uhr)?
-        val ringing = RuntimeStore.getRingingAlarmId(this)
-        val shownId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID)
-        if (ringing == null || ringing != shownId) finish()
     }
 
     override fun onDestroy() {
