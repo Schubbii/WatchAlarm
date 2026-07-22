@@ -61,13 +61,6 @@ object AlarmSync {
         }
     }
 
-    /** true, wenn mindestens ein Gegen-Gerät (Node) verbunden ist. */
-    suspend fun isPeerConnected(context: Context): Boolean = try {
-        Wearable.getNodeClient(context.applicationContext).connectedNodes.await().isNotEmpty()
-    } catch (e: Exception) {
-        false
-    }
-
     /**
      * Vollabgleich beim App-/Gerätestart: höchste Version aus allen
      * vorhandenen DataItems übernehmen bzw. eigenen neueren Stand pushen.

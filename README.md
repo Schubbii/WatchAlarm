@@ -6,17 +6,14 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
 
 ## Verhalten (bewusst einfach gehalten)
 
-- **Uhr:** vibriert, sonst nichts.
+- **Uhr:** vibriert. Der Klingel-Screen hat einen **Stopp-Button**; das
+  beendet den Alarm auch auf dem Handy.
 - **Handy:** kein Ton, keine Vibration — es erscheint im aus- **und**
   eingeschalteten Zustand ein Vollbild-Screen zum Ausschalten (mit Stopp
   und Schlummern).
-- **Ausgeschaltet wird am Handy.** Stoppt man dort, hört die Uhr sofort auf
-  zu vibrieren.
-- 🛟 **Notfall-Stopp auf der Uhr:** Ist das Handy beim Alarm **nicht
-  verbunden** (Bluetooth getrennt, außer Reichweite, aus), blendet die Uhr
-  nach ~10 s einen Stopp-Button ein, damit sie nie unabschaltbar
-  weitervibriert. Zusätzlich gilt ein 5-Minuten-Timeout (danach automatisch
-  Schlummern bzw. Stopp).
+- Stopp auf einem Gerät beendet den Alarm auf beiden.
+- 🛟 Zusätzliches Netz: 5-Minuten-Timeout (danach automatisch Schlummern
+  bzw. Stopp), damit die Uhr nie endlos weitervibriert.
 
 ## Features
 

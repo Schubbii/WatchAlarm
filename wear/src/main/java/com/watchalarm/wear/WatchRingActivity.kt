@@ -18,12 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,17 +33,14 @@ import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmScheduler
 import com.watchalarm.core.AlarmService
 import com.watchalarm.core.AlarmStore
-import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.SyncContract
-import kotlinx.coroutines.delay
 
 /**
  * Klingelansicht auf der Uhr (die Uhr vibriert dabei).
  *
- * Ausgeschaltet wird am Handy — deshalb gibt es hier normalerweise keinen
- * Stopp-Button, nur den Hinweis "Am Handy ausschalten". Ist das Handy
- * jedoch nicht (mehr) verbunden, wird nach [DISCONNECT_GRACE_MS] ein
- * Notfall-Stopp eingeblendet, damit die Uhr nie unabschaltbar weitervibriert.
+ * Der Alarm lässt sich hier direkt per Stopp-Button beenden; das stoppt
+ * über eine Message auch das Handy. Zusätzlich der Hinweis, dass man ihn
+ * auch am Handy ausschalten kann.
  */
 class WatchRingActivity : ComponentActivity() {
 
@@ -82,7 +73,7 @@ class WatchRingActivity : ComponentActivity() {
         }
 
         // Auch von hier den Service starten: Falls der Receiver-Pfad vom
-        // System blockiert wurde, klingelt es trotzdem (doppelter Start ist
+        // System blockiert wurde, vibriert es trotzdem (doppelter Start ist
         // im Service abgefangen).
         ContextCompat.startForegroundService(
             this,
@@ -113,30 +104,6 @@ class WatchRingActivity : ComponentActivity() {
 
     @Composable
     private fun RingScreen(alarm: Alarm) {
-        // Verbindungs-Überwachung: alle 3 s prüfen, ob das Handy als Node
-        // erreichbar ist. Nach DISCONNECT_GRACE_MS ohne Verbindung wird der
-        // Notfall-Stopp freigeschaltet.
-        var phoneConnected by remember { mutableStateOf(true) }
-        var disconnectedSince by remember { mutableLongStateOf(0L) }
-        var emergencyDismiss by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) {
-            while (true) {
-                val connected = AlarmSync.isPeerConnected(this@WatchRingActivity)
-                val now = System.currentTimeMillis()
-                if (connected) {
-                    phoneConnected = true
-                    disconnectedSince = 0L
-                    emergencyDismiss = false
-                } else {
-                    phoneConnected = false
-                    if (disconnectedSince == 0L) disconnectedSince = now
-                    if (now - disconnectedSince >= DISCONNECT_GRACE_MS) emergencyDismiss = true
-                }
-                delay(3_000)
-            }
-        }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -159,42 +126,20 @@ class WatchRingActivity : ComponentActivity() {
             }
             Spacer(Modifier.height(12.dp))
 
-            if (emergencyDismiss) {
-                Text(
-                    "Handy nicht verbunden",
-                    style = MaterialTheme.typography.caption2,
-                    color = MaterialTheme.colors.error,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(6.dp))
-                Chip(
-                    onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
-                    label = { Text("Stopp (Notfall)") },
-                    colors = ChipDefaults.primaryChipColors(
-                        backgroundColor = MaterialTheme.colors.error,
-                    ),
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                )
-            } else {
-                Text(
-                    "📱 Am Handy ausschalten",
-                    style = MaterialTheme.typography.title3,
-                    textAlign = TextAlign.Center,
-                )
-                if (!phoneConnected) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Verbindung wird geprüft…",
-                        style = MaterialTheme.typography.caption2,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
+            Chip(
+                onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
+                label = { Text("Stopp") },
+                colors = ChipDefaults.primaryChipColors(
+                    backgroundColor = MaterialTheme.colors.error,
+                ),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "oder am Handy ausschalten",
+                style = MaterialTheme.typography.caption2,
+                textAlign = TextAlign.Center,
+            )
         }
-    }
-
-    companion object {
-        /** Karenzzeit, bevor der Notfall-Stopp auf der Uhr erscheint. */
-        const val DISCONNECT_GRACE_MS = 10_000L
     }
 }
