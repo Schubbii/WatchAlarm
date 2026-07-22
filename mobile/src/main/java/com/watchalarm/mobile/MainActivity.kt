@@ -1,7 +1,7 @@
 package com.watchalarm.mobile
 
 import android.Manifest
-import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,17 +20,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,12 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
@@ -61,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,7 +64,7 @@ import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
-import com.watchalarm.core.ToneResolver
+import com.watchalarm.core.SyncContract
 import java.util.Calendar
 
 class MainActivity : ComponentActivity() {
@@ -99,13 +95,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppRoot() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
     var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var showEditor by remember { mutableStateOf(false) }
 
-    // Liste aktualisieren, wenn sich der Speicher ändert (z.B. Sync von der Uhr).
+    // Liste/Klingelstatus aktualisieren, wenn sich der Speicher ändert
+    // (auch bei Sync von der Uhr).
     DisposableEffect(Unit) {
         val prefs = AlarmStore.prefs(context)
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
@@ -127,15 +124,11 @@ private fun AppRoot() {
         EditorScreen(
             initial = editing,
             onSave = { alarm ->
-                AlarmStore.applyLocalChange(context) { list ->
-                    list.filter { it.id != alarm.id } + alarm
-                }
+                AlarmStore.applyLocalChange(context) { list -> list.filter { it.id != alarm.id } + alarm }
                 showEditor = false
             },
             onDelete = { alarm ->
-                AlarmStore.applyLocalChange(context) { list ->
-                    list.filter { it.id != alarm.id }
-                }
+                AlarmStore.applyLocalChange(context) { list -> list.filter { it.id != alarm.id } }
                 showEditor = false
             },
             onBack = { showEditor = false },
@@ -146,8 +139,8 @@ private fun AppRoot() {
             ringingId = ringingId,
             onOpenRinging = { id ->
                 context.startActivity(
-                    android.content.Intent(context, AlarmActivity::class.java)
-                        .putExtra(com.watchalarm.core.SyncContract.EXTRA_ALARM_ID, id)
+                    Intent(context, AlarmActivity::class.java)
+                        .putExtra(SyncContract.EXTRA_ALARM_ID, id)
                 )
             },
             onAdd = { editing = null; showEditor = true },
@@ -193,7 +186,7 @@ private fun ListScreen(
                     ),
                 ) {
                     Text(
-                        "🔔 Alarm klingelt — tippen zum Ausschalten",
+                        "🔔 Alarm aktiv — tippen zum Ausschalten",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(16.dp),
@@ -201,10 +194,7 @@ private fun ListScreen(
                 }
             }
             if (alarms.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
                         style = MaterialTheme.typography.bodyLarge,
@@ -228,7 +218,7 @@ private fun ListScreen(
 
 @Composable
 private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -255,20 +245,6 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> 
                 }
                 if (subtitle.isNotBlank()) {
                     Text(subtitle, style = MaterialTheme.typography.bodyMedium)
-                }
-                if (alarm.phoneOnlyDismiss) {
-                    Text(
-                        "📱 Nur am Handy ausschaltbar",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                if (alarm.phoneMode == Alarm.MODE_OFF) {
-                    Text(
-                        "🔕 Klingelt nur auf der Uhr",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)
@@ -298,7 +274,7 @@ private fun EditorScreen(
     onDelete: (Alarm) -> Unit,
     onBack: () -> Unit,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     BackHandler(onBack = onBack)
 
     val timeState = rememberTimePickerState(
@@ -308,14 +284,8 @@ private fun EditorScreen(
     )
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var repeatDays by remember { mutableStateOf(initial?.repeatDays ?: emptySet()) }
-    var toneTitle by remember { mutableStateOf(initial?.toneTitle ?: "") }
-    var toneUri by remember { mutableStateOf(initial?.toneUri ?: "") }
     var snoozeMinutes by remember { mutableStateOf(initial?.snoozeMinutes ?: 5) }
     var maxSnoozes by remember { mutableStateOf(initial?.maxSnoozes ?: 3) }
-    var phoneOnly by remember { mutableStateOf(initial?.phoneOnlyDismiss ?: false) }
-    var watchMode by remember { mutableStateOf(initial?.watchMode ?: Alarm.MODE_SOUND_VIBRATE) }
-    var phoneMode by remember { mutableStateOf(initial?.phoneMode ?: Alarm.MODE_SOUND_VIBRATE) }
-    var showToneDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -364,74 +334,11 @@ private fun EditorScreen(
                         FilterChip(
                             selected = day in repeatDays,
                             onClick = {
-                                repeatDays =
-                                    if (day in repeatDays) repeatDays - day else repeatDays + day
+                                repeatDays = if (day in repeatDays) repeatDays - day else repeatDays + day
                             },
                             label = { Text(name) },
                         )
                     }
-                }
-            }
-
-            HorizontalDivider()
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showToneDialog = true },
-            ) {
-                Text("Alarmton", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    toneTitle.ifBlank { "Standard" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            HorizontalDivider()
-
-            Column {
-                Text("Uhr klingelt", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(
-                        Alarm.MODE_SOUND_VIBRATE to "Ton + Vibration",
-                        Alarm.MODE_VIBRATE to "Nur Vibration",
-                        Alarm.MODE_SOUND to "Nur Ton",
-                    ).forEach { (mode, name) ->
-                        FilterChip(
-                            selected = watchMode == mode,
-                            onClick = { watchMode = mode },
-                            label = { Text(name) },
-                        )
-                    }
-                }
-            }
-
-            Column {
-                Text("Handy klingelt", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(
-                        Alarm.MODE_SOUND_VIBRATE to "Ton + Vibration",
-                        Alarm.MODE_VIBRATE to "Nur Vibration",
-                        Alarm.MODE_OFF to "Gar nicht",
-                    ).forEach { (mode, name) ->
-                        FilterChip(
-                            selected = phoneMode == mode,
-                            onClick = { phoneMode = mode },
-                            label = { Text(name) },
-                        )
-                    }
-                }
-                if (phoneMode == Alarm.MODE_OFF && phoneOnly) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Das Handy bleibt stumm, zeigt aber eine lautlose " +
-                            "Stopp-Ansicht, solange die Uhr klingelt.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
@@ -465,24 +372,12 @@ private fun EditorScreen(
                 }
             }
 
-            HorizontalDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Nur am Handy ausschaltbar", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Der Alarm klingelt auf Uhr und Handy, lässt sich aber nur am Handy stoppen. " +
-                            "Ist das Handy nicht verbunden, kann er notfalls auch an der Uhr gestoppt werden.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(checked = phoneOnly, onCheckedChange = { phoneOnly = it })
-            }
+            Text(
+                "Die Uhr vibriert, das Handy zeigt diesen Stopp-Screen. " +
+                    "Ausgeschaltet wird am Handy.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Button(
                 onClick = {
@@ -493,13 +388,8 @@ private fun EditorScreen(
                             label = label.trim(),
                             enabled = true,
                             repeatDays = repeatDays,
-                            toneTitle = toneTitle,
-                            toneUri = toneUri,
                             snoozeMinutes = snoozeMinutes,
                             maxSnoozes = maxSnoozes,
-                            phoneOnlyDismiss = phoneOnly,
-                            watchMode = watchMode,
-                            phoneMode = phoneMode,
                         )
                     )
                 },
@@ -508,60 +398,5 @@ private fun EditorScreen(
                 Text("Speichern", fontSize = 16.sp)
             }
         }
-    }
-
-    if (showToneDialog) {
-        ToneDialog(
-            context = context,
-            selectedTitle = toneTitle,
-            onSelect = { title, uri ->
-                toneTitle = title
-                toneUri = uri
-                showToneDialog = false
-            },
-            onDismiss = { showToneDialog = false },
-        )
-    }
-}
-
-@Composable
-private fun ToneDialog(
-    context: Context,
-    selectedTitle: String,
-    onSelect: (String, String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val tones = remember { ToneResolver.listAlarmTones(context) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Alarmton wählen") },
-        text = {
-            LazyColumn {
-                item {
-                    ToneRow("Standard", selectedTitle.isBlank()) { onSelect("", "") }
-                }
-                items(tones) { (title, uri) ->
-                    ToneRow(title, title == selectedTitle) { onSelect(title, uri.toString()) }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
-        },
-    )
-}
-
-@Composable
-private fun ToneRow(title: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Spacer(Modifier.width(8.dp))
-        Text(title)
     }
 }

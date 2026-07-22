@@ -5,7 +5,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -53,17 +52,7 @@ object AlarmScheduler {
         activityPendingIntent(context, alarmId, isSnooze = false)?.let { am.cancel(it) }
     }
 
-    /** Handys können pro Alarm stummgeschaltet sein — dann gar nicht planen. */
-    private fun ringsOnThisDevice(context: Context, alarm: Alarm): Boolean {
-        val isWatch = context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-        return isWatch || alarm.phoneMode != Alarm.MODE_OFF || alarm.phoneOnlyDismiss
-    }
-
     private fun setAlarm(context: Context, alarm: Alarm, triggerAtMillis: Long, isSnooze: Boolean) {
-        if (!ringsOnThisDevice(context, alarm)) {
-            cancel(context, alarm.id)
-            return
-        }
         val am = context.getSystemService(AlarmManager::class.java) ?: return
         val showPending = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
             PendingIntent.getActivity(

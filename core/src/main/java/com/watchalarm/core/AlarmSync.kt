@@ -14,18 +14,18 @@ import kotlinx.coroutines.tasks.await
 /**
  * Synchronisation über die Wearable Data Layer API.
  *
- * - Die Alarmliste liegt als DataItem unter [SyncContract.PATH_ALARMS]
- *   (wird von Play Services persistiert und auch nach Verbindungsabbrüchen
- *   nachgeliefert).
- * - Ausschalten/Snooze werden zusätzlich als Messages an alle verbundenen
- *   Nodes geschickt, damit das Klingeln sofort stoppt.
+ * - Die Alarmliste liegt als DataItem unter [SyncContract.PATH_ALARMS] mit
+ *   Lamport-Version. Play Services persistiert und liefert sie auch nach
+ *   Verbindungsabbrüchen nach.
+ * - Ausschalten/Snooze werden zusätzlich als Messages geschickt, damit das
+ *   Klingeln sofort stoppt.
  */
 object AlarmSync {
 
     private const val TAG = "AlarmSync"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** Eigenen Alarmbestand als DataItem veröffentlichen. */
+    /** Eigenen Alarmbestand (Liste + Version) als DataItem veröffentlichen. */
     fun pushAlarms(context: Context) {
         val appContext = context.applicationContext
         scope.launch {
@@ -35,10 +35,7 @@ object AlarmSync {
                         SyncContract.KEY_ALARMS_JSON,
                         Alarm.listToJson(AlarmStore.getAlarms(appContext))
                     )
-                    dataMap.putLong(
-                        SyncContract.KEY_TIMESTAMP,
-                        AlarmStore.getLastModified(appContext)
-                    )
+                    dataMap.putLong(SyncContract.KEY_VERSION, AlarmStore.getVersion(appContext))
                 }.asPutDataRequest().setUrgent()
                 Wearable.getDataClient(appContext).putDataItem(request).await()
             } catch (e: Exception) {
@@ -72,7 +69,7 @@ object AlarmSync {
     }
 
     /**
-     * Vollabgleich beim App-/Gerätestart: neuesten Stand aus allen
+     * Vollabgleich beim App-/Gerätestart: höchste Version aus allen
      * vorhandenen DataItems übernehmen bzw. eigenen neueren Stand pushen.
      */
     fun syncNow(context: Context) {
@@ -80,15 +77,15 @@ object AlarmSync {
         scope.launch {
             try {
                 val buffer = Wearable.getDataClient(appContext).dataItems.await()
-                var bestTs = 0L
+                var bestVersion = 0L
                 var bestJson: String? = null
                 try {
                     for (item in buffer) {
                         if (item.uri.path != SyncContract.PATH_ALARMS) continue
                         val map = DataMapItem.fromDataItem(item).dataMap
-                        val ts = map.getLong(SyncContract.KEY_TIMESTAMP)
-                        if (ts > bestTs) {
-                            bestTs = ts
+                        val v = map.getLong(SyncContract.KEY_VERSION)
+                        if (v > bestVersion) {
+                            bestVersion = v
                             bestJson = map.getString(SyncContract.KEY_ALARMS_JSON)
                         }
                     }
@@ -96,9 +93,9 @@ object AlarmSync {
                     buffer.release()
                 }
                 val json = bestJson
-                if (json != null && bestTs > AlarmStore.getLastModified(appContext)) {
-                    AlarmStore.applyRemote(appContext, Alarm.listFromJson(json), bestTs)
-                } else if (AlarmStore.getLastModified(appContext) > bestTs) {
+                if (json != null && bestVersion > AlarmStore.getVersion(appContext)) {
+                    AlarmStore.applyRemote(appContext, Alarm.listFromJson(json), bestVersion)
+                } else if (AlarmStore.getVersion(appContext) > bestVersion) {
                     pushAlarms(appContext)
                 }
             } catch (e: Exception) {

@@ -117,22 +117,6 @@ class AlarmActivity : ComponentActivity() {
             if (alarm.label.isNotBlank()) {
                 Text(alarm.label, style = MaterialTheme.typography.headlineSmall)
             }
-            if (alarm.phoneOnlyDismiss) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Dieser Alarm kann nur hier am Handy gestoppt werden",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            if (alarm.phoneMode == Alarm.MODE_OFF) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "🔕 Handy stumm — der Alarm klingelt auf der Uhr",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             Spacer(Modifier.height(48.dp))
 
             Button(

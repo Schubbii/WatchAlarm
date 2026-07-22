@@ -10,7 +10,13 @@ object SyncContract {
     const val PATH_SNOOZE = "/watchalarm/snooze"
 
     const val KEY_ALARMS_JSON = "alarms_json"
-    const val KEY_TIMESTAMP = "timestamp"
+
+    /**
+     * Lamport-Zähler statt Wanduhr-Zeitstempel: geräteunabhängig und
+     * monoton, damit Änderungen von Uhr UND Handy zuverlässig ankommen —
+     * auch wenn die Emulator-Uhren voneinander abweichen.
+     */
+    const val KEY_VERSION = "version"
 
     const val EXTRA_ALARM_ID = "com.watchalarm.extra.ALARM_ID"
 

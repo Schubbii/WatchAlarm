@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,12 +49,12 @@ import androidx.wear.compose.material.SplitToggleChip
 import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
-import androidx.wear.compose.material.ToggleChip
 import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
+import com.watchalarm.core.SyncContract
 
 class MainActivity : ComponentActivity() {
 
@@ -110,15 +109,11 @@ private fun WearApp() {
         WatchEditor(
             initial = editing,
             onSave = { alarm ->
-                AlarmStore.applyLocalChange(context) { list ->
-                    list.filter { it.id != alarm.id } + alarm
-                }
+                AlarmStore.applyLocalChange(context) { list -> list.filter { it.id != alarm.id } + alarm }
                 showEditor = false
             },
             onDelete = { alarm ->
-                AlarmStore.applyLocalChange(context) { list ->
-                    list.filter { it.id != alarm.id }
-                }
+                AlarmStore.applyLocalChange(context) { list -> list.filter { it.id != alarm.id } }
                 showEditor = false
             },
             onBack = { showEditor = false },
@@ -130,7 +125,7 @@ private fun WearApp() {
             onOpenRinging = { id ->
                 context.startActivity(
                     Intent(context, WatchRingActivity::class.java)
-                        .putExtra(com.watchalarm.core.SyncContract.EXTRA_ALARM_ID, id)
+                        .putExtra(SyncContract.EXTRA_ALARM_ID, id)
                 )
             },
             onAdd = { editing = null; showEditor = true },
@@ -163,7 +158,7 @@ private fun WatchList(
                 item {
                     Chip(
                         onClick = { onOpenRinging(ringingId) },
-                        label = { Text("🔔 Alarm klingelt — öffnen") },
+                        label = { Text("🔔 Alarm aktiv — öffnen") },
                         colors = ChipDefaults.primaryChipColors(
                             backgroundColor = MaterialTheme.colors.error,
                         ),
@@ -177,16 +172,7 @@ private fun WatchList(
                     onCheckedChange = { onToggle(alarm, it) },
                     onClick = { onEdit(alarm) },
                     label = { Text(alarm.formattedTime(context)) },
-                    secondaryLabel = {
-                        val text = buildString {
-                            if (alarm.phoneOnlyDismiss) append("📱 Nur Handy")
-                            if (alarm.label.isNotBlank()) {
-                                if (isNotEmpty()) append(" · ")
-                                append(alarm.label)
-                            }
-                        }
-                        if (text.isNotBlank()) Text(text)
-                    },
+                    secondaryLabel = { if (alarm.label.isNotBlank()) Text(alarm.label) },
                     toggleControl = { Switch(checked = alarm.enabled) },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -198,14 +184,6 @@ private fun WatchList(
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
-                Text(
-                    "Töne & Details in der Handy-App",
-                    style = MaterialTheme.typography.caption3,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
             }
         }
@@ -231,9 +209,6 @@ private fun WatchEditor(
         initialNumberOfOptions = 60,
         initiallySelectedOption = initial?.minute ?: 0,
     )
-    var phoneOnly by remember { mutableStateOf(initial?.phoneOnlyDismiss ?: false) }
-    var watchMode by remember { mutableStateOf(initial?.watchMode ?: Alarm.MODE_SOUND_VIBRATE) }
-    var phoneMode by remember { mutableStateOf(initial?.phoneMode ?: Alarm.MODE_SOUND_VIBRATE) }
 
     ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
         item { ListHeader { Text(if (initial == null) "Neuer Wecker" else "Bearbeiten") } }
@@ -261,63 +236,6 @@ private fun WatchEditor(
             }
         }
         item {
-            ToggleChip(
-                checked = phoneOnly,
-                onCheckedChange = { phoneOnly = it },
-                label = { Text("Nur am Handy ausschaltbar") },
-                toggleControl = { Switch(checked = phoneOnly) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            // Tippen wechselt zyklisch durch die Uhr-Modi.
-            Chip(
-                onClick = {
-                    watchMode = when (watchMode) {
-                        Alarm.MODE_SOUND_VIBRATE -> Alarm.MODE_VIBRATE
-                        Alarm.MODE_VIBRATE -> Alarm.MODE_SOUND
-                        else -> Alarm.MODE_SOUND_VIBRATE
-                    }
-                },
-                label = { Text("Uhr") },
-                secondaryLabel = {
-                    Text(
-                        when (watchMode) {
-                            Alarm.MODE_VIBRATE -> "Nur Vibration"
-                            Alarm.MODE_SOUND -> "Nur Ton"
-                            else -> "Ton + Vibration"
-                        }
-                    )
-                },
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            // Tippen wechselt zyklisch durch die Handy-Modi.
-            Chip(
-                onClick = {
-                    phoneMode = when (phoneMode) {
-                        Alarm.MODE_SOUND_VIBRATE -> Alarm.MODE_VIBRATE
-                        Alarm.MODE_VIBRATE -> Alarm.MODE_OFF
-                        else -> Alarm.MODE_SOUND_VIBRATE
-                    }
-                },
-                label = { Text("Handy") },
-                secondaryLabel = {
-                    Text(
-                        when (phoneMode) {
-                            Alarm.MODE_VIBRATE -> "Nur Vibration"
-                            Alarm.MODE_OFF -> "Gar nicht"
-                            else -> "Ton + Vibration"
-                        }
-                    )
-                },
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -329,9 +247,6 @@ private fun WatchEditor(
                                 hour = hourState.selectedOption,
                                 minute = minuteState.selectedOption,
                                 enabled = true,
-                                phoneOnlyDismiss = phoneOnly,
-                                watchMode = watchMode,
-                                phoneMode = phoneMode,
                             )
                         )
                     },
@@ -351,7 +266,7 @@ private fun WatchEditor(
         }
         item {
             Text(
-                "Ton & Snooze in der Handy-App einstellbar",
+                "Uhr vibriert · Ausschalten am Handy · Details in der Handy-App",
                 style = MaterialTheme.typography.caption3,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),

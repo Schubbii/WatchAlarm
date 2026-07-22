@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -20,26 +18,25 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
- * Vordergrund-Service, der den Alarm klingeln lässt (Ton + Vibration),
- * die Vollbild-Benachrichtigung zeigt und Dismiss/Snooze ausführt.
+ * Vordergrund-Service, solange ein Alarm aktiv ist.
  *
- * Wichtige Regeln:
- * - "Nur am Handy ausschaltbar": Auf der Uhr wird für solche Alarme keine
- *   Stopp-Aktion angeboten (die Klingel-Activity der Uhr blendet einen
- *   Notfall-Stopp erst ein, wenn das Handy nicht mehr verbunden ist).
- * - Sicherheitsnetz: Nach [RING_TIMEOUT_MS] wird automatisch gesnoozt
- *   bzw. beendet, damit der Alarm nie endlos weiterklingelt — auch wenn
- *   das Handy dauerhaft getrennt bleibt.
- * - Timeout-Aktionen bleiben lokal (kein Sync), damit ein Timeout auf der
- *   Uhr niemals den Alarm auf dem Handy beendet.
+ * - **Uhr:** vibriert (Dauermuster), sonst nichts.
+ * - **Handy:** still — zeigt nur die Vollbild-Benachrichtigung bzw. den
+ *   Stopp-Screen ([AppRegistry.ringActivityClass]).
+ * - Ausgeschaltet wird immer am Handy. Die Uhr bietet einen Notfall-Stopp
+ *   nur, wenn das Handy nicht verbunden ist — das regelt die Klingel-
+ *   Activity der Uhr.
+ * - Sicherheitsnetz: nach [RING_TIMEOUT_MS] automatisch Snooze bzw. Stopp,
+ *   damit die Uhr nie endlos vibriert.
  */
 class AlarmService : Service() {
 
-    private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
     private var currentAlarmId: String? = null
     private val timeoutRunnable = Runnable { onTimeout() }
+
+    private val isWatch by lazy { packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -70,7 +67,7 @@ class AlarmService : Service() {
     }
 
     override fun onDestroy() {
-        stopPlayback()
+        stopVibration()
         handler.removeCallbacks(timeoutRunnable)
         super.onDestroy()
     }
@@ -78,39 +75,28 @@ class AlarmService : Service() {
     // ---------------------------------------------------------------- ring
 
     private fun startRinging(alarmId: String, isSnooze: Boolean) {
-        // Receiver UND Klingel-Activity starten den Service — nur einmal klingeln.
+        // Receiver UND Klingel-Activity starten den Service — nur einmal starten.
         if (alarmId == currentAlarmId) return
         val alarm = AlarmStore.getAlarm(this, alarmId)
         if (alarm == null) {
             stopSelf()
             return
         }
-        stopPlayback()
         currentAlarmId = alarmId
         if (!isSnooze) RuntimeStore.clearSnoozeCount(this, alarmId)
         RuntimeStore.setRingingAlarmId(this, alarmId)
 
         createChannel()
         val notification = buildNotification(alarm)
-        when {
-            // systemExempted ist der für Wecker-Apps (USE_EXACT_ALARM)
-            // vorgesehene Typ; mediaPlayback darf ab API 34 nicht mehr aus
-            // dem Hintergrund gestartet werden.
-            Build.VERSION.SDK_INT >= 34 ->
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            else ->
-                startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= 34) {
+            // systemExempted: der für Wecker-Apps (USE_EXACT_ALARM) erlaubte
+            // Typ; darf auch aus dem Hintergrund gestartet werden.
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
 
-        val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-        val mode = if (isWatch) alarm.watchMode else alarm.phoneMode
-        startPlayback(
-            alarm,
-            playSound = mode == Alarm.MODE_SOUND_VIBRATE || mode == Alarm.MODE_SOUND,
-            vibrate = mode == Alarm.MODE_SOUND_VIBRATE || mode == Alarm.MODE_VIBRATE,
-        )
+        if (isWatch) startVibration()
 
         handler.removeCallbacks(timeoutRunnable)
         handler.postDelayed(timeoutRunnable, RING_TIMEOUT_MS)
@@ -131,7 +117,7 @@ class AlarmService : Service() {
     }
 
     private fun stopRinging() {
-        stopPlayback()
+        stopVibration()
         handler.removeCallbacks(timeoutRunnable)
         currentAlarmId = null
         RuntimeStore.setRingingAlarmId(this, null)
@@ -139,44 +125,18 @@ class AlarmService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun startPlayback(alarm: Alarm, playSound: Boolean, vibrate: Boolean) {
-        if (playSound) {
-            try {
-                player = MediaPlayer().apply {
-                    setDataSource(this@AlarmService, ToneResolver.resolve(this@AlarmService, alarm))
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    isLooping = true
-                    prepare()
-                    start()
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Alarmton konnte nicht abgespielt werden, nur Vibration", e)
-                player = null
-            }
-        }
-        if (vibrate) {
-            try {
-                vibrator = getSystemService(Vibrator::class.java)
-                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
-            } catch (e: Exception) {
-                Log.w(TAG, "Vibration nicht möglich", e)
-            }
+    private fun startVibration() {
+        try {
+            vibrator = getSystemService(Vibrator::class.java)
+            // Dauervibration (Muster wiederholt ab Index 0).
+            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 600, 500), 0))
+            Log.d(TAG, "Uhr vibriert")
+        } catch (e: Exception) {
+            Log.w(TAG, "Vibration nicht möglich", e)
         }
     }
 
-    private fun stopPlayback() {
-        try {
-            player?.stop()
-            player?.release()
-        } catch (e: Exception) {
-            // ignorieren
-        }
-        player = null
+    private fun stopVibration() {
         vibrator?.cancel()
         vibrator = null
     }
@@ -191,22 +151,20 @@ class AlarmService : Service() {
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = getString(R.string.core_channel_description)
-            setSound(null, null) // Ton kommt vom MediaPlayer
-            enableVibration(false)
+            setSound(null, null)
+            enableVibration(false) // Vibration steuern wir selbst (nur Uhr)
         }
         manager.createNotificationChannel(channel)
     }
 
     private fun buildNotification(alarm: Alarm): android.app.Notification {
-        val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-        val allowLocalDismiss = !(isWatch && alarm.phoneOnlyDismiss)
         val snoozeAvailable = alarm.snoozeMinutes > 0 &&
             RuntimeStore.getSnoozeCount(this, alarm.id) < alarm.maxSnoozes
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_core_alarm)
             .setContentTitle(alarm.label.ifBlank { getString(R.string.core_alarm_title) })
-            .setContentText(alarm.formattedTime(this))
+            .setContentText(if (isWatch) getString(R.string.core_dismiss_on_phone) else alarm.formattedTime(this))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -225,13 +183,12 @@ class AlarmService : Service() {
             builder.setContentIntent(fullScreen)
         }
 
-        if (snoozeAvailable) {
-            builder.addAction(0, getString(R.string.core_snooze), servicePendingIntent(ACTION_SNOOZE, 2))
-        }
-        if (allowLocalDismiss) {
+        // Stopp/Snooze nur am Handy — die Uhr wird am Handy ausgeschaltet.
+        if (!isWatch) {
+            if (snoozeAvailable) {
+                builder.addAction(0, getString(R.string.core_snooze), servicePendingIntent(ACTION_SNOOZE, 2))
+            }
             builder.addAction(0, getString(R.string.core_stop), servicePendingIntent(ACTION_DISMISS, 3))
-        } else {
-            builder.setContentText(getString(R.string.core_dismiss_on_phone))
         }
         return builder.build()
     }

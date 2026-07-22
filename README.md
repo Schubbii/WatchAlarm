@@ -1,44 +1,40 @@
 # WatchAlarm ⏰
 
 Ein Wecker für **Wear OS** (Pixel Watch, Galaxy Watch 4/5/6, …) mit Begleit-App
-für das Handy — und einer Besonderheit: Pro Alarm lässt sich einstellen, dass er
-**nur am Handy ausgeschaltet** werden kann. Die Uhr klingelt dann zwar mit, der
-Stopp-Button existiert aber nur auf dem Handy. Perfekt gegen das verschlafene
-Wegdrücken am Handgelenk.
+für das Handy. Die Idee: Die **Uhr weckt per Vibration**, ausgeschaltet wird
+aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
+
+## Verhalten (bewusst einfach gehalten)
+
+- **Uhr:** vibriert, sonst nichts.
+- **Handy:** kein Ton, keine Vibration — es erscheint im aus- **und**
+  eingeschalteten Zustand ein Vollbild-Screen zum Ausschalten (mit Stopp
+  und Schlummern).
+- **Ausgeschaltet wird am Handy.** Stoppt man dort, hört die Uhr sofort auf
+  zu vibrieren.
+- 🛟 **Notfall-Stopp auf der Uhr:** Ist das Handy beim Alarm **nicht
+  verbunden** (Bluetooth getrennt, außer Reichweite, aus), blendet die Uhr
+  nach ~10 s einen Stopp-Button ein, damit sie nie unabschaltbar
+  weitervibriert. Zusätzlich gilt ein 5-Minuten-Timeout (danach automatisch
+  Schlummern bzw. Stopp).
 
 ## Features
 
-- ⏰ Vollständige Wecker-App: Uhrzeit, Bezeichnung, Wochentags-Wiederholung
-- 🔔 Alarmton-Auswahl (Systemtöne des Geräts)
+- ⏰ Uhrzeit, Bezeichnung, Wochentags-Wiederholung (auf beiden Geräten
+  einstellbar)
 - 😴 Snooze konfigurierbar: Dauer (3–30 min) und maximale Anzahl (0–10×)
-- ⌚ Klingel-Modus pro Gerät und Alarm:
-  - **Uhr**: Ton + Vibration, nur Vibration oder nur Ton
-  - **Handy**: Ton + Vibration, nur Vibration oder gar nicht
-  - Steht das Handy auf „gar nicht" und ist der Alarm „nur am Handy
-    ausschaltbar", zeigt das Handy eine **lautlose Stopp-Ansicht**,
-    während die Uhr klingelt/vibriert
-- 📱 **„Nur am Handy ausschaltbar"** — Schalter pro Alarm:
-  - *Aus*: Alarm kann auf Uhr **und** Handy gestoppt werden (Stopp auf einem
-    Gerät stoppt beide)
-  - *An*: Die Uhr zeigt nur „Am Handy ausschalten"; gestoppt wird am Handy,
-    die Uhr hört sofort mit auf
-- 🔄 Ständige Synchronisation zwischen Uhr und Handy über die
-  **Wearable Data Layer API** (Alarme können auf beiden Geräten angelegt,
-  geändert und umgeschaltet werden)
-- 🛟 **Sicherheitsnetz gegen Endlos-Klingeln auf der Uhr**:
-  1. Ist das Handy beim Klingeln **nicht verbunden** (Bluetooth getrennt,
-     außer Reichweite, aus), blendet die Uhr nach ~10 s Karenzzeit einen
-     Notfall-Stopp ein.
-  2. Zusätzlich gilt auf beiden Geräten ein Klingel-Timeout von 5 Minuten:
-     danach wird automatisch gesnoozt bzw. beendet.
+- 🔄 Ständige Synchronisation zwischen Uhr und Handy über die **Wearable
+  Data Layer API** — Änderungen von **beiden** Seiten kommen an, geordnet
+  über einen geräteunabhängigen Lamport-Versionszähler (kein Wanduhr-
+  Zeitstempel, damit abweichende Emulator-Uhren nichts verwerfen)
 
 ## Projektstruktur
 
 | Modul    | Inhalt |
 |----------|--------|
 | `core`   | Gemeinsame Logik: Datenmodell, Speicher, Alarm-Planung (`AlarmManager.setAlarmClock`), Klingel-Service, Data-Layer-Sync, Boot-Receiver |
-| `mobile` | Handy-App (Jetpack Compose, Material 3): Alarmliste, Editor (Zeit, Ton, Snooze, Wochentage, Nur-Handy-Schalter), Vollbild-Klingelansicht |
-| `wear`   | Wear-OS-App (Compose for Wear OS): Alarmliste mit Schaltern, einfacher Editor, Klingelansicht mit Verbindungs-Überwachung |
+| `mobile` | Handy-App (Jetpack Compose, Material 3): Alarmliste, Editor (Zeit, Bezeichnung, Wochentage, Snooze), Vollbild-Stopp-Ansicht |
+| `wear`   | Wear-OS-App (Compose for Wear OS): Alarmliste mit Schaltern, einfacher Editor, Vibrations-/Stopp-Ansicht mit Verbindungs-Überwachung |
 
 Beide Apps verwenden dieselbe `applicationId` (`com.watchalarm`) — Voraussetzung
 dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
@@ -46,9 +42,12 @@ dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
 ## Wie die Synchronisation funktioniert
 
 - Die komplette Alarmliste wird als **DataItem** (`/watchalarm/alarms`) mit
-  Zeitstempel veröffentlicht. DataItems werden von den Play Services
-  persistiert und **auch nach Verbindungsabbrüchen nachgeliefert** — neuere
-  Stände gewinnen (last-write-wins).
+  **Lamport-Version** veröffentlicht. DataItems werden von den Play Services
+  persistiert und **auch nach Verbindungsabbrüchen nachgeliefert**. Ein
+  empfangener Stand wird übernommen, wenn seine Version höher ist als die
+  eigene — geräteunabhängig, deshalb kommen Änderungen von Uhr **und** Handy
+  zuverlässig an (der frühere Wanduhr-Zeitstempel verwarf Uhr→Handy-
+  Updates, wenn die Emulator-Uhren auseinanderliefen).
 - **Jedes Gerät plant seine Alarme selbst** aus der synchronisierten Liste.
   Der Alarm klingelt also auch dann zuverlässig, wenn Uhr und Handy gerade
   getrennt sind.

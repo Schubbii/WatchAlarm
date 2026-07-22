@@ -18,8 +18,8 @@ class SyncListenerService : WearableListenerService() {
             if (event.dataItem.uri.path != SyncContract.PATH_ALARMS) continue
             val map = DataMapItem.fromDataItem(event.dataItem).dataMap
             val json = map.getString(SyncContract.KEY_ALARMS_JSON) ?: continue
-            val ts = map.getLong(SyncContract.KEY_TIMESTAMP)
-            AlarmStore.applyRemote(this, Alarm.listFromJson(json), ts)
+            val version = map.getLong(SyncContract.KEY_VERSION)
+            AlarmStore.applyRemote(this, Alarm.listFromJson(json), version)
         }
     }
 

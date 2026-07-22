@@ -40,17 +40,16 @@ import com.watchalarm.core.AlarmScheduler
 import com.watchalarm.core.AlarmService
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
-import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SyncContract
 import kotlinx.coroutines.delay
 
 /**
- * Klingelansicht auf der Uhr.
+ * Klingelansicht auf der Uhr (die Uhr vibriert dabei).
  *
- * Bei Alarmen mit "Nur am Handy ausschaltbar" gibt es hier keinen
- * Stopp-Button — außer das Handy ist nicht (mehr) verbunden: Dann wird
- * nach kurzer Karenzzeit ein Notfall-Stopp eingeblendet, damit der Alarm
- * niemals unabschaltbar weiterklingelt.
+ * Ausgeschaltet wird am Handy — deshalb gibt es hier normalerweise keinen
+ * Stopp-Button, nur den Hinweis "Am Handy ausschalten". Ist das Handy
+ * jedoch nicht (mehr) verbunden, wird nach [DISCONNECT_GRACE_MS] ein
+ * Notfall-Stopp eingeblendet, damit die Uhr nie unabschaltbar weitervibriert.
  */
 class WatchRingActivity : ComponentActivity() {
 
@@ -114,9 +113,6 @@ class WatchRingActivity : ComponentActivity() {
 
     @Composable
     private fun RingScreen(alarm: Alarm) {
-        val snoozeAvailable = alarm.snoozeMinutes > 0 &&
-            RuntimeStore.getSnoozeCount(this, alarm.id) < alarm.maxSnoozes
-
         // Verbindungs-Überwachung: alle 3 s prüfen, ob das Handy als Node
         // erreichbar ist. Nach DISCONNECT_GRACE_MS ohne Verbindung wird der
         // Notfall-Stopp freigeschaltet.
@@ -124,28 +120,22 @@ class WatchRingActivity : ComponentActivity() {
         var disconnectedSince by remember { mutableLongStateOf(0L) }
         var emergencyDismiss by remember { mutableStateOf(false) }
 
-        if (alarm.phoneOnlyDismiss) {
-            LaunchedEffect(Unit) {
-                while (true) {
-                    val connected = AlarmSync.isPeerConnected(this@WatchRingActivity)
-                    val now = System.currentTimeMillis()
-                    if (connected) {
-                        phoneConnected = true
-                        disconnectedSince = 0L
-                        emergencyDismiss = false
-                    } else {
-                        phoneConnected = false
-                        if (disconnectedSince == 0L) disconnectedSince = now
-                        if (now - disconnectedSince >= DISCONNECT_GRACE_MS) {
-                            emergencyDismiss = true
-                        }
-                    }
-                    delay(3_000)
+        LaunchedEffect(Unit) {
+            while (true) {
+                val connected = AlarmSync.isPeerConnected(this@WatchRingActivity)
+                val now = System.currentTimeMillis()
+                if (connected) {
+                    phoneConnected = true
+                    disconnectedSince = 0L
+                    emergencyDismiss = false
+                } else {
+                    phoneConnected = false
+                    if (disconnectedSince == 0L) disconnectedSince = now
+                    if (now - disconnectedSince >= DISCONNECT_GRACE_MS) emergencyDismiss = true
                 }
+                delay(3_000)
             }
         }
-
-        val canDismissHere = !alarm.phoneOnlyDismiss || emergencyDismiss
 
         Column(
             modifier = Modifier
@@ -169,19 +159,17 @@ class WatchRingActivity : ComponentActivity() {
             }
             Spacer(Modifier.height(12.dp))
 
-            if (canDismissHere) {
-                if (alarm.phoneOnlyDismiss) {
-                    Text(
-                        "Handy nicht verbunden",
-                        style = MaterialTheme.typography.caption2,
-                        color = MaterialTheme.colors.error,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                }
+            if (emergencyDismiss) {
+                Text(
+                    "Handy nicht verbunden",
+                    style = MaterialTheme.typography.caption2,
+                    color = MaterialTheme.colors.error,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(6.dp))
                 Chip(
                     onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
-                    label = { Text("Stopp") },
+                    label = { Text("Stopp (Notfall)") },
                     colors = ChipDefaults.primaryChipColors(
                         backgroundColor = MaterialTheme.colors.error,
                     ),
@@ -201,16 +189,6 @@ class WatchRingActivity : ComponentActivity() {
                         textAlign = TextAlign.Center,
                     )
                 }
-            }
-
-            if (snoozeAvailable) {
-                Spacer(Modifier.height(8.dp))
-                Chip(
-                    onClick = { sendServiceAction(AlarmService.ACTION_SNOOZE) },
-                    label = { Text("Schlummern (${alarm.snoozeMinutes} min)") },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                )
             }
         }
     }

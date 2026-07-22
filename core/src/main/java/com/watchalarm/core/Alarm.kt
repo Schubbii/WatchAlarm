@@ -13,10 +13,9 @@ import java.util.UUID
  * [repeatDays] enthält [java.util.Calendar]-Wochentagskonstanten
  * (SUNDAY=1 .. SATURDAY=7). Leer = einmaliger Alarm.
  *
- * [watchMode] steuert, WIE die Uhr klingelt (Ton+Vibration, nur Vibration,
- * nur Ton), [phoneMode] das Handy (Ton+Vibration, nur Vibration, aus).
- * Steht [phoneMode] auf [MODE_OFF] und [phoneOnlyDismiss] ist gesetzt,
- * zeigt das Handy eine lautlose Stopp-Ansicht.
+ * Klingelverhalten ist bewusst fest verdrahtet: Die Uhr vibriert, das Handy
+ * zeigt (lautlos) den Stopp-Screen. Ausgeschaltet wird am Handy; die Uhr
+ * bietet einen Notfall-Stopp nur, wenn das Handy nicht verbunden ist.
  */
 data class Alarm(
     val id: String = UUID.randomUUID().toString(),
@@ -25,13 +24,8 @@ data class Alarm(
     val label: String = "",
     val enabled: Boolean = true,
     val repeatDays: Set<Int> = emptySet(),
-    val toneTitle: String = "",
-    val toneUri: String = "",
     val snoozeMinutes: Int = 5,
     val maxSnoozes: Int = 3,
-    val phoneOnlyDismiss: Boolean = false,
-    val watchMode: String = MODE_SOUND_VIBRATE,
-    val phoneMode: String = MODE_SOUND_VIBRATE,
 ) {
 
     val repeating: Boolean get() = repeatDays.isNotEmpty()
@@ -73,28 +67,11 @@ data class Alarm(
         put("label", label)
         put("enabled", enabled)
         put("repeatDays", JSONArray(repeatDays.toList()))
-        put("toneTitle", toneTitle)
-        put("toneUri", toneUri)
         put("snoozeMinutes", snoozeMinutes)
         put("maxSnoozes", maxSnoozes)
-        put("phoneOnlyDismiss", phoneOnlyDismiss)
-        put("watchMode", watchMode)
-        put("phoneMode", phoneMode)
     }
 
     companion object {
-
-        /** Ton und Vibration. */
-        const val MODE_SOUND_VIBRATE = "sound_vibrate"
-
-        /** Nur Vibration, kein Ton. */
-        const val MODE_VIBRATE = "vibrate"
-
-        /** Nur Ton, keine Vibration (nur für die Uhr angeboten). */
-        const val MODE_SOUND = "sound"
-
-        /** Gerät klingelt gar nicht (nur für das Handy angeboten). */
-        const val MODE_OFF = "off"
 
         fun fromJson(o: JSONObject): Alarm {
             val days = mutableSetOf<Int>()
@@ -108,13 +85,8 @@ data class Alarm(
                 label = o.optString("label", ""),
                 enabled = o.optBoolean("enabled", true),
                 repeatDays = days,
-                toneTitle = o.optString("toneTitle", ""),
-                toneUri = o.optString("toneUri", ""),
                 snoozeMinutes = o.optInt("snoozeMinutes", 5),
                 maxSnoozes = o.optInt("maxSnoozes", 3),
-                phoneOnlyDismiss = o.optBoolean("phoneOnlyDismiss", false),
-                watchMode = o.optString("watchMode", MODE_SOUND_VIBRATE),
-                phoneMode = o.optString("phoneMode", MODE_SOUND_VIBRATE),
             )
         }
 
