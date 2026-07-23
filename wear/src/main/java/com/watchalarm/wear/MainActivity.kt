@@ -53,6 +53,7 @@ import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.AppInfo
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SyncContract
 
@@ -184,6 +185,14 @@ private fun WatchList(
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Text(
+                    "v ${AppInfo.VERSION}",
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
             }
         }

@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.AppInfo
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SyncContract
 import java.util.Calendar
@@ -174,7 +175,8 @@ private fun ListScreen(
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (ringingId != null) {
                 Card(
                     modifier = Modifier
@@ -212,6 +214,13 @@ private fun ListScreen(
                     }
                 }
             }
+        }
+            Text(
+                "v ${AppInfo.VERSION}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+            )
         }
     }
 }
