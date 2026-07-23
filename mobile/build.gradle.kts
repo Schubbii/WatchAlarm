@@ -21,6 +21,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Mit dem Standard-Debug-Key signieren, damit der Release-Build
+            // ohne eigenes Keystore installierbar ist. Handy und Uhr nutzen
+            // denselben Key -> Data Layer koppelt weiterhin.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
