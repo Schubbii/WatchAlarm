@@ -84,6 +84,8 @@ object AlarmScheduler {
             .setData(Uri.parse("watchalarm://alarm/$alarmId"))
             .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
             .putExtra(EXTRA_IS_SNOOZE, isSnooze)
+            // Bevorzugte Zustellung, auch wenn die App geschlossen ist / Doze.
+            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         return PendingIntent.getBroadcast(
             context, alarmId.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
