@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Material.Light als Basis, damit das Fenster im Hellmodus nicht schwarz
+      startet. Die eigentlichen Farben setzt Compose; hier zählt nur, was vor
+      dem ersten Frame und hinter den Systemleisten zu sehen ist.
+    -->
+    <style name="Theme.WatchAlarm" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+
+    <!-- Der Klingel-Screen ist immer dunkel (nachts im Bett). -->
+    <style name="Theme.WatchAlarm.Ring" parent="Theme.WatchAlarm">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

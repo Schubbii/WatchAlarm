@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="core_channel_name">Wecker</string>
+    <string name="core_channel_description">Klingelnder Wecker</string>
+    <string name="core_alarm_title">Wecker</string>
+    <string name="core_snooze">Schlummern</string>
+    <string name="core_stop">Stopp</string>
+    <string name="core_dismiss_on_phone">Am Handy ausschalten</string>
+</resources>
