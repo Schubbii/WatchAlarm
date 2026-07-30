@@ -8,10 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -32,6 +34,7 @@ import androidx.core.app.NotificationCompat
 class AlarmService : Service() {
 
     private var vibrator: Vibrator? = null
+    private var wakeLock: PowerManager.WakeLock? = null
     private val handler = Handler(Looper.getMainLooper())
     private var currentAlarmId: String? = null
     private val timeoutRunnable = Runnable { onTimeout() }
@@ -68,6 +71,7 @@ class AlarmService : Service() {
 
     override fun onDestroy() {
         stopVibration()
+        releaseWakeLock()
         handler.removeCallbacks(timeoutRunnable)
         super.onDestroy()
     }
@@ -86,14 +90,29 @@ class AlarmService : Service() {
         if (!isSnooze) RuntimeStore.clearSnoozeCount(this, alarmId)
         RuntimeStore.setRingingAlarmId(this, alarmId)
 
+        // Ohne WakeLock kann die CPU wieder schlafen, sobald der Bildschirm
+        // aus ist — dann feuert der Timeout unten nicht und das Vibrations-
+        // muster bricht auf manchen Uhren ab.
+        acquireWakeLock()
+
         createChannel()
         val notification = buildNotification(alarm)
-        if (Build.VERSION.SDK_INT >= 34) {
-            // systemExempted: der für Wecker-Apps (USE_EXACT_ALARM) erlaubte
-            // Typ; darf auch aus dem Hintergrund gestartet werden.
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                // systemExempted: der für Wecker-Apps (USE_EXACT_ALARM) erlaubte
+                // Typ; darf auch aus dem Hintergrund gestartet werden.
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            // Manche Hersteller-ROMs verweigern den Vordergrund-Start.
+            // Dann lieber ohne Vordergrund-Service klingeln als abstürzen.
+            Log.w(TAG, "startForeground abgelehnt, Fallback auf Benachrichtigung", e)
+            runCatching {
+                getSystemService(NotificationManager::class.java)
+                    ?.notify(NOTIFICATION_ID, notification)
+            }
         }
 
         if (isWatch) startVibration()
@@ -123,13 +142,26 @@ class AlarmService : Service() {
         RuntimeStore.setRingingAlarmId(this, null)
         sendBroadcast(Intent(SyncContract.ACTION_RING_STOPPED).setPackage(packageName))
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // Falls der Vordergrund-Start oben fehlgeschlagen ist, hängt die
+        // Benachrichtigung nicht am Service und muss selbst weg.
+        runCatching { getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID) }
+        releaseWakeLock()
     }
 
     private fun startVibration() {
         try {
-            vibrator = getSystemService(Vibrator::class.java)
-            // Dauervibration (Muster wiederholt ab Index 0).
-            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 600, 500), 0))
+            val v = getSystemService(Vibrator::class.java) ?: return
+            vibrator = v
+            // Dauervibration (Muster wiederholt ab Index 0). Die Nutzung
+            // "Alarm" ist wichtig: ohne sie unterdrücken "Nicht stören",
+            // Kino- und Schlafmodus die Vibration auf vielen Uhren komplett.
+            v.vibrate(
+                VibrationEffect.createWaveform(longArrayOf(0, 600, 500), 0),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
             Log.d(TAG, "Uhr vibriert")
         } catch (e: Exception) {
             Log.w(TAG, "Vibration nicht möglich", e)
@@ -137,8 +169,30 @@ class AlarmService : Service() {
     }
 
     private fun stopVibration() {
-        vibrator?.cancel()
+        runCatching { vibrator?.cancel() }
         vibrator = null
+    }
+
+    // ------------------------------------------------------------- wakelock
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        try {
+            val pm = getSystemService(PowerManager::class.java) ?: return
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
+                setReferenceCounted(false)
+                // Harte Obergrenze, damit ein hängender Service den Akku
+                // nicht leersaugt.
+                acquire(RING_TIMEOUT_MS + 30_000L)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "WakeLock nicht verfügbar", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
+        wakeLock = null
     }
 
     // -------------------------------------------------------- notification
@@ -203,6 +257,7 @@ class AlarmService : Service() {
     companion object {
 
         private const val TAG = "AlarmService"
+        private const val WAKE_LOCK_TAG = "WatchAlarm:ring"
 
         const val ACTION_START = "com.watchalarm.action.SERVICE_START"
         const val ACTION_DISMISS = "com.watchalarm.action.SERVICE_DISMISS"

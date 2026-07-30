@@ -79,5 +79,9 @@ adb -s <uhr>   install wear/build/outputs/apk/debug/wear-debug.apk
 
 - `USE_EXACT_ALARM` / `SCHEDULE_EXACT_ALARM` — exakte Weckzeiten
 - `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT` — Vollbild-Klingelansicht
-- `FOREGROUND_SERVICE(_MEDIA_PLAYBACK)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
+- `FOREGROUND_SERVICE(_SYSTEM_EXEMPTED)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
 - `RECEIVE_BOOT_COMPLETED` — Alarme nach Neustart wiederherstellen
+
+> Ab Android 14 ist `USE_FULL_SCREEN_INTENT` eine widerrufbare Berechtigung.
+> Fehlt sie, zeigt die Handy-App oben in der Liste einen Hinweis, der direkt
+> in die passenden Systemeinstellungen führt.

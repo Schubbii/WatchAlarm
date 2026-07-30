@@ -32,10 +32,14 @@ object AlarmStore {
 
     @Synchronized
     private fun replaceAll(context: Context, alarms: List<Alarm>, version: Long) {
+        // apply() statt commit(): der Wert steht sofort im Speicher (alle
+        // Leser unten sehen ihn), das Schreiben auf die Platte läuft im
+        // Hintergrund. commit() blockierte hier den Compose-Callback, also
+        // den Main-Thread — auf Uhren gut sicht- und messbar.
         prefs(context).edit()
             .putString(KEY_ALARMS, Alarm.listToJson(alarms))
             .putLong(KEY_VERSION, version)
-            .commit()
+            .apply()
     }
 
     /**

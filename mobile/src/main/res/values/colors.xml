@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hintergrund des Fensters, bevor Compose zeichnet. Muss zum
+         Farbschema passen, sonst blitzt beim Start die falsche Farbe auf. -->
+    <color name="window_background">#FFFFFFFF</color>
+</resources>

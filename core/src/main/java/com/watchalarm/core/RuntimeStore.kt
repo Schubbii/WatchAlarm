@@ -23,21 +23,21 @@ object RuntimeStore {
     fun setRingingAlarmId(context: Context, id: String?) {
         prefs(context).edit().apply {
             if (id == null) remove(KEY_RINGING) else putString(KEY_RINGING, id)
-        }.commit()
+        }.apply()
     }
 
     fun getSnoozeCount(context: Context, alarmId: String): Int =
         prefs(context).getInt(KEY_SNOOZE_PREFIX + alarmId, 0)
 
     fun setSnoozeCount(context: Context, alarmId: String, count: Int) {
-        prefs(context).edit().putInt(KEY_SNOOZE_PREFIX + alarmId, count).commit()
+        prefs(context).edit().putInt(KEY_SNOOZE_PREFIX + alarmId, count).apply()
     }
 
     fun clearSnoozeCount(context: Context, alarmId: String) {
         prefs(context).edit()
             .remove(KEY_SNOOZE_PREFIX + alarmId)
             .remove(KEY_SNOOZE_UNTIL_PREFIX + alarmId)
-            .commit()
+            .apply()
     }
 
     /** Zeitpunkt (Millis), zu dem ein laufender Snooze erneut klingeln soll. */
@@ -45,10 +45,10 @@ object RuntimeStore {
         prefs(context).getLong(KEY_SNOOZE_UNTIL_PREFIX + alarmId, 0L)
 
     fun setSnoozeUntil(context: Context, alarmId: String, triggerAtMillis: Long) {
-        prefs(context).edit().putLong(KEY_SNOOZE_UNTIL_PREFIX + alarmId, triggerAtMillis).commit()
+        prefs(context).edit().putLong(KEY_SNOOZE_UNTIL_PREFIX + alarmId, triggerAtMillis).apply()
     }
 
     fun clearSnoozeUntil(context: Context, alarmId: String) {
-        prefs(context).edit().remove(KEY_SNOOZE_UNTIL_PREFIX + alarmId).commit()
+        prefs(context).edit().remove(KEY_SNOOZE_UNTIL_PREFIX + alarmId).apply()
     }
 }

@@ -14,8 +14,8 @@ android {
         applicationId = "com.watchalarm"
         minSdk = 30
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.6"
+        versionCode = 4
+        versionName = "1.7"
     }
 
     buildTypes {

@@ -25,6 +25,7 @@
             android:launchMode="singleTask"
             android:showWhenLocked="true"
             android:taskAffinity=""
+            android:theme="@style/Theme.WatchAlarm.Ring"
             android:turnScreenOn="true" />
 
     </application>

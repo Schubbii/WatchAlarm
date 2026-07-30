@@ -1,19 +1,26 @@
 package com.watchalarm.mobile
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,8 +32,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +60,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,7 +82,21 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /**
+     * Ab Android 14 ist "Vollbild-Benachrichtigung" eine eigene, vom Nutzer
+     * widerrufbare Berechtigung. Fehlt sie, erscheint beim Klingeln nur
+     * noch eine Benachrichtigung statt des Stopp-Screens — darauf weisen
+     * wir in der Liste hin. Bei jedem onResume neu prüfen, damit der
+     * Hinweis nach dem Erteilen sofort verschwindet.
+     */
+    private val fullScreenIntentBlocked = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Ab targetSdk 35 zeichnet Android immer randlos. Ohne
+        // enableEdgeToEdge() erbt die Statusleiste die Icon-Farbe aus dem
+        // (dunklen) Plattform-Theme — im hellen Modus also weiße Icons auf
+        // hellem Grund, sprich unsichtbar.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -87,20 +110,28 @@ class MainActivity : ComponentActivity() {
             val dark = androidx.compose.foundation.isSystemInDarkTheme()
             MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppRoot()
+                    AppRoot(fullScreenIntentBlocked.value)
                 }
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        fullScreenIntentBlocked.value = Build.VERSION.SDK_INT >= 34 &&
+            getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == false
+    }
 }
 
 @Composable
-private fun AppRoot() {
+private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     val context = LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
     var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
-    var editing by remember { mutableStateOf<Alarm?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
+    // Über die ID statt über das Alarm-Objekt: Alarm ist nicht Parcelable,
+    // und so überlebt der geöffnete Editor eine Drehung / Prozess-Neustart.
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showEditor by rememberSaveable { mutableStateOf(false) }
 
     // Liste/Klingelstatus aktualisieren, wenn sich der Speicher ändert
     // (auch bei Sync von der Uhr).
@@ -123,7 +154,7 @@ private fun AppRoot() {
 
     if (showEditor) {
         EditorScreen(
-            initial = editing,
+            initial = editingId?.let { id -> alarms.firstOrNull { it.id == id } },
             onSave = { alarm ->
                 AlarmStore.applyLocalChange(context) { list -> list.filter { it.id != alarm.id } + alarm }
                 showEditor = false
@@ -138,14 +169,15 @@ private fun AppRoot() {
         ListScreen(
             alarms = alarms.sortedWith(compareBy({ it.hour }, { it.minute })),
             ringingId = ringingId,
+            fullScreenIntentBlocked = fullScreenIntentBlocked,
             onOpenRinging = { id ->
                 context.startActivity(
                     Intent(context, AlarmActivity::class.java)
                         .putExtra(SyncContract.EXTRA_ALARM_ID, id)
                 )
             },
-            onAdd = { editing = null; showEditor = true },
-            onEdit = { editing = it; showEditor = true },
+            onAdd = { editingId = null; showEditor = true },
+            onEdit = { editingId = it.id; showEditor = true },
             onToggle = { alarm, enabled ->
                 AlarmStore.applyLocalChange(context) { list ->
                     list.map { if (it.id == alarm.id) it.copy(enabled = enabled) else it }
@@ -162,11 +194,13 @@ private fun AppRoot() {
 private fun ListScreen(
     alarms: List<Alarm>,
     ringingId: String?,
+    fullScreenIntentBlocked: Boolean,
     onOpenRinging: (String) -> Unit,
     onAdd: () -> Unit,
     onEdit: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
     Scaffold(
         topBar = { TopAppBar(title = { Text("WatchAlarm") }) },
         floatingActionButton = {
@@ -176,45 +210,75 @@ private fun ListScreen(
         },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (ringingId != null) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-                        .clickable { onOpenRinging(ringingId) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
-                ) {
-                    Text(
-                        "🔔 Alarm aktiv — tippen zum Ausschalten",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp),
-                    )
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (ringingId != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                            .clickable { onOpenRinging(ringingId) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                    ) {
+                        Text(
+                            "🔔 Alarm aktiv — tippen zum Ausschalten",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
                 }
-            }
-            if (alarms.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (fullScreenIntentBlocked) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                            .clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                    )
+                                }
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        ),
+                    ) {
+                        Text(
+                            "⚠️ Vollbild-Benachrichtigungen sind aus. Ohne sie erscheint " +
+                                "beim Klingeln kein Stopp-Screen. Tippen zum Einschalten.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(alarms, key = { it.id }) { alarm ->
-                        AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                if (alarms.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        // Unten extra Platz, sonst verdeckt der FAB den
+                        // letzten Wecker (und dessen Schalter).
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(alarms, key = { it.id }) { alarm ->
+                            AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                        }
                     }
                 }
             }
-        }
             Text(
                 "v ${AppInfo.VERSION}",
                 style = MaterialTheme.typography.labelSmall,
@@ -273,9 +337,15 @@ private fun repeatDaysLabel(days: Set<Int>): String = when {
     else -> dayOrder.filter { it.first in days }.joinToString(" ") { it.second }
 }
 
+/** Set<Int> ist nicht bundle-fähig, deshalb über eine Liste sichern. */
+private val intSetSaver = listSaver<Set<Int>, Int>(
+    save = { it.toList() },
+    restore = { it.toSet() },
+)
+
 // ------------------------------------------------------------------ Editor
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun EditorScreen(
     initial: Alarm?,
@@ -291,10 +361,14 @@ private fun EditorScreen(
         initialMinute = initial?.minute ?: 0,
         is24Hour = android.text.format.DateFormat.is24HourFormat(context),
     )
-    var label by remember { mutableStateOf(initial?.label ?: "") }
-    var repeatDays by remember { mutableStateOf(initial?.repeatDays ?: emptySet()) }
-    var snoozeMinutes by remember { mutableStateOf(initial?.snoozeMinutes ?: 5) }
-    var maxSnoozes by remember { mutableStateOf(initial?.maxSnoozes ?: 3) }
+    // rememberSaveable statt remember: sonst sind alle Eingaben nach einer
+    // Drehung (oder auf einem Foldable beim Auf-/Zuklappen) wieder weg.
+    var label by rememberSaveable { mutableStateOf(initial?.label ?: "") }
+    var repeatDays by rememberSaveable(stateSaver = intSetSaver) {
+        mutableStateOf(initial?.repeatDays ?: emptySet())
+    }
+    var snoozeMinutes by rememberSaveable { mutableStateOf(initial?.snoozeMinutes ?: 5) }
+    var maxSnoozes by rememberSaveable { mutableStateOf(initial?.maxSnoozes ?: 3) }
 
     Scaffold(
         topBar = {
@@ -338,7 +412,13 @@ private fun EditorScreen(
             Column {
                 Text("Wiederholen", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // FlowRow statt Row: in einer Row liefen die sieben Chips auf
+                // schmalen Geräten (und bei großer Schrift) rechts aus dem
+                // Bild — Sa/So waren nicht erreichbar.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     dayOrder.forEach { (day, name) ->
                         FilterChip(
                             selected = day in repeatDays,
@@ -356,7 +436,10 @@ private fun EditorScreen(
             Column {
                 Text("Snooze-Dauer", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     listOf(3, 5, 10, 15, 30).forEach { min ->
                         FilterChip(
                             selected = snoozeMinutes == min,
@@ -370,7 +453,10 @@ private fun EditorScreen(
             Column {
                 Text("Snooze-Anzahl (maximal)", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     listOf(0, 1, 2, 3, 5, 10).forEach { n ->
                         FilterChip(
                             selected = maxSnoozes == n,

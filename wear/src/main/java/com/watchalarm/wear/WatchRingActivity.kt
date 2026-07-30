@@ -14,10 +14,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +47,13 @@ import com.watchalarm.core.SyncContract
  */
 class WatchRingActivity : ComponentActivity() {
 
+    /**
+     * `singleTask`: ein erneuter Start (zweiter Alarm, Tipp auf die
+     * Benachrichtigung) kommt über [onNewIntent] herein. Ohne State bliebe
+     * der alte Alarm stehen.
+     */
+    private val alarmState = mutableStateOf<Alarm?>(null)
+
     private val stopReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             finish()
@@ -65,32 +75,23 @@ class WatchRingActivity : ComponentActivity() {
             registerReceiver(stopReceiver, filter)
         }
 
-        val alarmId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID)
-        val alarm = alarmId?.let { AlarmStore.getAlarm(this, it) }
-        if (alarm == null) {
+        if (!bindAlarm(intent)) {
             finish()
             return
         }
 
-        // Auch von hier den Service starten: Falls der Receiver-Pfad vom
-        // System blockiert wurde, vibriert es trotzdem (doppelter Start ist
-        // im Service abgefangen).
-        ContextCompat.startForegroundService(
-            this,
-            Intent(this, AlarmService::class.java)
-                .setAction(AlarmService.ACTION_START)
-                .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
-                .putExtra(
-                    AlarmScheduler.EXTRA_IS_SNOOZE,
-                    intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
-                )
-        )
-
         setContent {
             MaterialTheme {
-                RingScreen(alarm)
+                val alarm by alarmState
+                alarm?.let { RingScreen(it) }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (!bindAlarm(intent)) finish()
     }
 
     override fun onDestroy() {
@@ -98,8 +99,34 @@ class WatchRingActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /** Liefert false, wenn der Intent auf keinen bekannten Alarm zeigt. */
+    private fun bindAlarm(intent: Intent): Boolean {
+        val alarmId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID) ?: return false
+        val alarm = AlarmStore.getAlarm(this, alarmId) ?: return false
+        alarmState.value = alarm
+
+        // Auch von hier den Service starten: Falls der Receiver-Pfad vom
+        // System blockiert wurde, vibriert es trotzdem (doppelter Start ist
+        // im Service abgefangen).
+        runCatching {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, AlarmService::class.java)
+                    .setAction(AlarmService.ACTION_START)
+                    .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
+                    .putExtra(
+                        AlarmScheduler.EXTRA_IS_SNOOZE,
+                        intent.getBooleanExtra(AlarmScheduler.EXTRA_IS_SNOOZE, false)
+                    )
+            )
+        }
+        return true
+    }
+
     private fun sendServiceAction(action: String) {
-        startService(Intent(this, AlarmService::class.java).setAction(action))
+        runCatching {
+            startService(Intent(this, AlarmService::class.java).setAction(action))
+        }
     }
 
     @Composable
@@ -116,6 +143,7 @@ class WatchRingActivity : ComponentActivity() {
                 alarm.formattedTime(this@WatchRingActivity),
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Light,
+                maxLines = 1,
             )
             if (alarm.label.isNotBlank()) {
                 Text(
@@ -132,7 +160,9 @@ class WatchRingActivity : ComponentActivity() {
                 colors = ChipDefaults.primaryChipColors(
                     backgroundColor = MaterialTheme.colors.error,
                 ),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                // Auf runden Displays würden die Ecken eines randbreiten
+                // Chips unter der Lünette verschwinden.
+                modifier = Modifier.fillMaxWidth(0.92f).heightIn(min = 52.dp),
             )
             Spacer(Modifier.height(6.dp))
             Text(
