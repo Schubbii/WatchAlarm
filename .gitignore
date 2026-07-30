@@ -11,3 +11,8 @@ captures/
 *.aab
 *.keystore
 !debug.keystore
+
+# Release-Signierung — niemals einchecken.
+*.jks
+keystore.properties
+play-service-account.json

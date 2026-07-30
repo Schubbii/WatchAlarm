@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Standardsprache ist Englisch (Google Play liefert weltweit aus).
+  Deutsche Übersetzung: values-de/strings.xml
+-->
 <resources>
-    <string name="core_channel_name">Wecker</string>
-    <string name="core_channel_description">Klingelnder Wecker</string>
-    <string name="core_alarm_title">Wecker</string>
-    <string name="core_snooze">Schlummern</string>
-    <string name="core_stop">Stopp</string>
-    <string name="core_dismiss_on_phone">Am Handy ausschalten</string>
+    <string name="core_channel_name">Alarm</string>
+    <string name="core_channel_description">Ringing alarm</string>
+    <string name="core_alarm_title">Alarm</string>
+    <string name="core_snooze">Snooze</string>
+    <string name="core_stop">Stop</string>
+    <string name="core_dismiss_on_phone">Turn off on your phone</string>
 </resources>

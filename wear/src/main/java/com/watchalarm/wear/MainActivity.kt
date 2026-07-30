@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,7 +65,6 @@ import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
-import com.watchalarm.core.AppInfo
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SyncContract
 import java.text.DateFormatSymbols
@@ -195,12 +195,12 @@ private fun WatchList(
             state = listState,
             modifier = Modifier.fillMaxSize().rotaryScroll(listState),
         ) {
-            item { ListHeader { Text("Wecker") } }
+            item { ListHeader { Text(stringResource(R.string.title_alarms)) } }
             if (ringingId != null) {
                 item {
                     Chip(
                         onClick = { onOpenRinging(ringingId) },
-                        label = { Text("🔔 Alarm aktiv — öffnen") },
+                        label = { Text(stringResource(R.string.alarm_active_open)) },
                         colors = ChipDefaults.primaryChipColors(
                             backgroundColor = MaterialTheme.colors.error,
                         ),
@@ -222,7 +222,7 @@ private fun WatchList(
             item {
                 Chip(
                     onClick = onAdd,
-                    label = { Text("Neuer Wecker") },
+                    label = { Text(stringResource(R.string.new_alarm)) },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
@@ -230,7 +230,7 @@ private fun WatchList(
             }
             item {
                 Text(
-                    "v ${AppInfo.VERSION}",
+                    stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -278,7 +278,15 @@ private fun WatchEditor(
             state = listState,
             modifier = Modifier.fillMaxSize(),
         ) {
-            item { ListHeader { Text(if (initial == null) "Neuer Wecker" else "Bearbeiten") } }
+            item {
+                ListHeader {
+                    Text(
+                        stringResource(
+                            if (initial == null) R.string.new_alarm else R.string.title_edit_alarm
+                        )
+                    )
+                }
+            }
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().height(100.dp),
@@ -287,7 +295,7 @@ private fun WatchEditor(
                 ) {
                     Picker(
                         state = hourState,
-                        contentDescription = "Stunde",
+                        contentDescription = stringResource(R.string.picker_hour),
                         modifier = Modifier.width(pickerWidth).fillMaxSize(),
                     ) { index ->
                         Text(
@@ -299,7 +307,7 @@ private fun WatchEditor(
                     Text(":", fontSize = 28.sp)
                     Picker(
                         state = minuteState,
-                        contentDescription = "Minute",
+                        contentDescription = stringResource(R.string.picker_minute),
                         modifier = Modifier.width(pickerWidth).fillMaxSize(),
                     ) { index ->
                         Text("%02d".format(index), fontSize = 28.sp)
@@ -307,7 +315,7 @@ private fun WatchEditor(
                     if (!is24Hour) {
                         Picker(
                             state = amPmState,
-                            contentDescription = "Vormittag oder Nachmittag",
+                            contentDescription = stringResource(R.string.picker_am_pm),
                             modifier = Modifier.width(48.dp).fillMaxSize(),
                         ) { index ->
                             Text(amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" }, fontSize = 20.sp)
@@ -337,7 +345,7 @@ private fun WatchEditor(
                             )
                         },
                     ) {
-                        Icon(Icons.Filled.Check, contentDescription = "Speichern")
+                        Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.save))
                     }
                     if (initial != null) {
                         Spacer(Modifier.width(12.dp))
@@ -345,14 +353,14 @@ private fun WatchEditor(
                             onClick = { onDelete(initial) },
                             colors = ButtonDefaults.secondaryButtonColors(),
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Löschen")
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     }
                 }
             }
             item {
                 Text(
-                    "Uhr vibriert · Ausschalten am Handy · Details in der Handy-App",
+                    stringResource(R.string.editor_hint),
                     style = MaterialTheme.typography.caption3,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),

@@ -1,0 +1,100 @@
+name: Build
+
+# Baut beide Apps und lässt Android Lint laufen. Ohne Release-Keystore
+# (Pull Requests aus Forks) wird nur der Debug-Build gebaut — der Release-Teil
+# überspringt sich dann selbst, statt fehlzuschlagen.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Debug-Builds
+        run: ./gradlew :mobile:assembleDebug :wear:assembleDebug --stacktrace
+
+      - name: Lint
+        run: ./gradlew :mobile:lintDebug :wear:lintDebug --stacktrace
+
+      - name: Lint-Berichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: "*/build/reports/lint-results-*.html"
+          if-no-files-found: ignore
+
+      - name: Debug-APKs hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apks
+          path: |
+            mobile/build/outputs/apk/debug/*.apk
+            wear/build/outputs/apk/debug/*.apk
+
+  release-bundles:
+    # Nur wenn ein Keystore hinterlegt ist. Secrets sind in Forks leer.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Keystore wiederherstellen
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WATCHALARM_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Kein Keystore-Secret hinterlegt — Release-Build wird übersprungen."
+            echo "skip=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/upload.jks"
+          echo "skip=false" >> "$GITHUB_ENV"
+
+      - name: App Bundles bauen
+        if: env.skip == 'false'
+        env:
+          WATCHALARM_STORE_FILE: upload.jks
+          WATCHALARM_STORE_PASSWORD: ${{ secrets.WATCHALARM_STORE_PASSWORD }}
+          WATCHALARM_KEY_ALIAS: ${{ secrets.WATCHALARM_KEY_ALIAS }}
+          WATCHALARM_KEY_PASSWORD: ${{ secrets.WATCHALARM_KEY_PASSWORD }}
+        run: ./gradlew :mobile:bundleRelease :wear:bundleRelease --stacktrace
+
+      - name: Bundles hochladen
+        if: env.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundles
+          path: |
+            mobile/build/outputs/bundle/release/*.aab
+            wear/build/outputs/bundle/release/*.aab
+
+      - name: Keystore aufräumen
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/upload.jks"

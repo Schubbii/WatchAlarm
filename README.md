@@ -75,6 +75,27 @@ adb -s <uhr>   install wear/build/outputs/apk/debug/wear-debug.apk
 > (beim Debug-Build automatisch der Fall), sonst verweigert die Data Layer
 > API die Kommunikation.
 
+### Version erhöhen
+
+Version und Build-Nummer stehen zentral in `gradle.properties`
+(`watchalarm.versionName` / `watchalarm.versionCode`); die Uhr bekommt
+automatisch `versionCode + 1000`. Beide Apps zeigen die Version über
+`BuildConfig.VERSION_NAME` an — nirgends sonst gepflegt.
+
+### Veröffentlichen
+
+Release-Signierung, Play-Console-Ablauf und die nötigen Berechtigungs-
+Deklarationen stehen in **[RELEASING.md](RELEASING.md)**.
+Datenschutzerklärung: **[PRIVACY.md](PRIVACY.md)**.
+
+## Sprachen
+
+Standardsprache ist **Englisch** (`values/strings.xml`), Deutsch liegt als
+Übersetzung daneben (`values-de/strings.xml`). Wochentagskürzel und
+Wochenanfang kommen über `java.time`/`WeekFields` aus der Gerätesprache, die
+Uhrzeit über `DateFormat.getTimeFormat()` aus der 12-/24-Stunden-Einstellung
+des Geräts.
+
 ## Berechtigungen
 
 - `USE_EXACT_ALARM` / `SCHEDULE_EXACT_ALARM` — exakte Weckzeiten

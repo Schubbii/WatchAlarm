@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Standardsprache Englisch. Deutsche Übersetzung: values-de/strings.xml -->
 <resources>
     <string name="app_name">WatchAlarm</string>
+
+    <!-- Liste -->
+    <string name="title_alarms">Alarms</string>
+    <string name="alarm_active_open">🔔 Alarm ringing — open</string>
+    <string name="new_alarm">New alarm</string>
+    <string name="version_label">v %1$s</string>
+
+    <!-- Editor -->
+    <string name="title_edit_alarm">Edit</string>
+    <string name="picker_hour">Hour</string>
+    <string name="picker_minute">Minute</string>
+    <string name="picker_am_pm">Before or after noon</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="editor_hint">Watch vibrates · turn off on the phone · details in the phone app</string>
+
+    <!-- Klingel-Screen -->
+    <string name="stop">Stop</string>
+    <string name="ring_hint">or turn off on your phone</string>
 </resources>

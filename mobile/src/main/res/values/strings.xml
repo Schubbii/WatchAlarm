@@ -1,4 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Standardsprache Englisch. Deutsche Übersetzung: values-de/strings.xml -->
 <resources>
     <string name="app_name">WatchAlarm</string>
+
+    <!-- Liste -->
+    <string name="add_alarm">Add alarm</string>
+    <string name="alarm_active_tap">🔔 Alarm ringing — tap to turn it off</string>
+    <string name="full_screen_intent_warning">⚠️ Full-screen notifications are off. Without them no stop screen appears when the alarm rings. Tap to turn them on.</string>
+    <string name="empty_list">No alarms yet.\nTap + to create one.</string>
+    <string name="repeat_daily">Daily</string>
+    <string name="version_label">v %1$s</string>
+
+    <!-- Editor -->
+    <string name="title_new_alarm">New alarm</string>
+    <string name="title_edit_alarm">Edit alarm</string>
+    <string name="back">Back</string>
+    <string name="delete">Delete</string>
+    <string name="field_label">Label</string>
+    <string name="section_repeat">Repeat</string>
+    <string name="section_snooze_duration">Snooze duration</string>
+    <string name="snooze_minutes_chip">%1$d min</string>
+    <string name="section_snooze_count">Maximum snoozes</string>
+    <string name="snooze_off">Off</string>
+    <string name="snooze_times_chip">%1$d×</string>
+    <string name="editor_hint">The watch vibrates, the phone shows the stop screen. You turn the alarm off on the phone.</string>
+    <string name="save">Save</string>
+
+    <!-- Klingel-Screen -->
+    <string name="stop">Stop</string>
+    <string name="snooze_with_duration">Snooze (%1$d min)</string>
 </resources>

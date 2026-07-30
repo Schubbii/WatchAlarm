@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -156,7 +157,7 @@ class WatchRingActivity : ComponentActivity() {
 
             Chip(
                 onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
-                label = { Text("Stopp") },
+                label = { Text(stringResource(R.string.stop)) },
                 colors = ChipDefaults.primaryChipColors(
                     backgroundColor = MaterialTheme.colors.error,
                 ),
@@ -166,7 +167,7 @@ class WatchRingActivity : ComponentActivity() {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "oder am Handy ausschalten",
+                stringResource(R.string.ring_hint),
                 style = MaterialTheme.typography.caption2,
                 textAlign = TextAlign.Center,
             )

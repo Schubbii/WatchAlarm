@@ -1,8 +1,29 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Siehe mobile/build.gradle.kts — beide Module lesen denselben Keystore,
+// weil Handy und Uhr zwingend mit demselben Schlüssel signiert sein müssen.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(env)
+
+val appVersionName = providers.gradleProperty("watchalarm.versionName").get()
+val appVersionCode = providers.gradleProperty("watchalarm.versionCode").get().toInt()
+val wearVersionCodeOffset = providers.gradleProperty("watchalarm.wearVersionCodeOffset").get().toInt()
+
+val releaseStorePath = signingValue("storeFile", "WATCHALARM_STORE_FILE")
+val hasReleaseKeystore = releaseStorePath != null && rootProject.file(releaseStorePath).exists()
 
 android {
     namespace = "com.watchalarm.wear"
@@ -13,18 +34,41 @@ android {
         // beide Apps als Paar erkennt.
         applicationId = "com.watchalarm"
         minSdk = 30
-        targetSdk = 34
-        versionCode = 4
-        versionName = "1.7"
+        targetSdk = 35
+        // Play verlangt für Uhr- und Handy-Artefakt derselben App-Eintragung
+        // unterschiedliche versionCodes — daher der feste Offset.
+        versionCode = appVersionCode + wearVersionCodeOffset
+        versionName = appVersionName
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(releaseStorePath!!)
+                storePassword = signingValue("storePassword", "WATCHALARM_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "WATCHALARM_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "WATCHALARM_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            // Mit dem Standard-Debug-Key signieren, damit der Release-Build
-            // ohne eigenes Keystore installierbar ist. Handy und Uhr nutzen
-            // denselben Key -> Data Layer koppelt weiterhin.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "WatchAlarm: kein Release-Keystore gefunden — Release wird mit dem " +
+                        "Debug-Key signiert und ist für Google Play NICHT verwendbar."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
@@ -44,6 +88,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

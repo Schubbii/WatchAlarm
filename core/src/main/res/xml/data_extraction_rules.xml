@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup und Gerätewechsel ab Android 12. Siehe backup_rules.xml für die
+  Begründung, warum der Laufzeitzustand ausgeschlossen ist.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="watchalarm_store.xml" />
+        <exclude domain="sharedpref" path="watchalarm_runtime.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="watchalarm_store.xml" />
+        <exclude domain="sharedpref" path="watchalarm_runtime.xml" />
+    </device-transfer>
+</data-extraction-rules>

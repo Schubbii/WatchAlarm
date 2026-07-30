@@ -1,8 +1,32 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Release-Schlüssel: bevorzugt aus keystore.properties im Projektwurzel-
+// verzeichnis (gehört NICHT ins Git), alternativ aus Umgebungsvariablen — so
+// läuft dieselbe Konfiguration lokal und in der CI. Fehlt beides, fällt der
+// Release-Build auf den Debug-Key zurück, damit er trotzdem baut.
+// WICHTIG: Handy und Uhr müssen mit demselben Schlüssel signiert sein, sonst
+// verweigert die Data Layer API die Kommunikation.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(env)
+
+val appVersionName = providers.gradleProperty("watchalarm.versionName").get()
+val appVersionCode = providers.gradleProperty("watchalarm.versionCode").get().toInt()
+
+val releaseStorePath = signingValue("storeFile", "WATCHALARM_STORE_FILE")
+val hasReleaseKeystore = releaseStorePath != null && rootProject.file(releaseStorePath).exists()
 
 android {
     namespace = "com.watchalarm.mobile"
@@ -14,17 +38,38 @@ android {
         applicationId = "com.watchalarm"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.7"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(releaseStorePath!!)
+                storePassword = signingValue("storePassword", "WATCHALARM_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "WATCHALARM_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "WATCHALARM_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            // Mit dem Standard-Debug-Key signieren, damit der Release-Build
-            // ohne eigenes Keystore installierbar ist. Handy und Uhr nutzen
-            // denselben Key -> Data Layer koppelt weiterhin.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "WatchAlarm: kein Release-Keystore gefunden — Release wird mit dem " +
+                        "Debug-Key signiert und ist für Google Play NICHT verwendbar."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
@@ -44,6 +89,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Liefert BuildConfig.VERSION_NAME für die Versionsanzeige in der UI,
+        // damit die Version nur noch an einer Stelle gepflegt wird.
+        buildConfig = true
     }
 }
 

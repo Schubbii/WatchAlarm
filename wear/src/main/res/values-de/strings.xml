@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Liste -->
+    <string name="title_alarms">Wecker</string>
+    <string name="alarm_active_open">🔔 Alarm aktiv — öffnen</string>
+    <string name="new_alarm">Neuer Wecker</string>
+
+    <!-- Editor -->
+    <string name="title_edit_alarm">Bearbeiten</string>
+    <string name="picker_hour">Stunde</string>
+    <string name="picker_minute">Minute</string>
+    <string name="picker_am_pm">Vormittag oder Nachmittag</string>
+    <string name="save">Speichern</string>
+    <string name="delete">Löschen</string>
+    <string name="editor_hint">Uhr vibriert · Ausschalten am Handy · Details in der Handy-App</string>
+
+    <!-- Klingel-Screen -->
+    <string name="stop">Stopp</string>
+    <string name="ring_hint">oder am Handy ausschalten</string>
+</resources>

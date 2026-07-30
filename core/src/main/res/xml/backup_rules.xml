@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup für Android 11 und älter.
+
+  Gesichert wird nur die Alarmliste — der Laufzeitzustand (gerade klingelnder
+  Alarm, verbrauchte Snoozes) darf NICHT mitwandern, sonst glaubt ein frisch
+  eingerichtetes Gerät, es klingele gerade.
+
+  Nach einer Wiederherstellung sind die Alarme zwar gespeichert, aber noch
+  nicht im AlarmManager eingetragen; das holt App.onCreate beim ersten Start
+  über AlarmScheduler.rescheduleAll() nach.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="watchalarm_store.xml" />
+    <exclude domain="sharedpref" path="watchalarm_runtime.xml" />
+</full-backup-content>
