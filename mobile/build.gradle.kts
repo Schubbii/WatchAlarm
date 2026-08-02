@@ -30,14 +30,14 @@ val hasReleaseKeystore = releaseStorePath != null && rootProject.file(releaseSto
 
 android {
     namespace = "com.watchalarm.mobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         // Muss identisch mit der Wear-App sein, damit die Data Layer API
         // beide Apps als Paar erkennt.
         applicationId = "com.watchalarm"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
     }
