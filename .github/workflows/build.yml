@@ -37,7 +37,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lint-reports
-          path: "*/build/reports/lint-results-*.html"
+          # Auch die Textfassung: die lässt sich im Fehlerfall direkt lesen,
+          # ohne das HTML erst herunterladen zu müssen.
+          path: |
+            */build/reports/lint-results-*.html
+            */build/reports/lint-results-*.txt
+            */build/intermediates/lint_intermediate_text_report/**/lint-results-*.txt
           if-no-files-found: ignore
 
       - name: Debug-APKs hochladen

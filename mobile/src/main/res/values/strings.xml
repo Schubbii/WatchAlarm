@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Standardsprache Englisch. Deutsche Übersetzung: values-de/strings.xml -->
 <resources>
-    <string name="app_name">WatchAlarm</string>
+    <string name="app_name" translatable="false">WatchAlarm</string>
 
     <!-- Liste -->
     <string name="add_alarm">Add alarm</string>
@@ -9,7 +9,7 @@
     <string name="full_screen_intent_warning">⚠️ Full-screen notifications are off. Without them no stop screen appears when the alarm rings. Tap to turn them on.</string>
     <string name="empty_list">No alarms yet.\nTap + to create one.</string>
     <string name="repeat_daily">Daily</string>
-    <string name="version_label">v %1$s</string>
+    <string name="version_label" translatable="false">v %1$s</string>
 
     <!-- Editor -->
     <string name="title_new_alarm">New alarm</string>

@@ -15,7 +15,11 @@
     <string name="field_label">Bezeichnung</string>
     <string name="section_repeat">Wiederholen</string>
     <string name="section_snooze_duration">Snooze-Dauer</string>
+    <!-- Im Deutschen identisch zum Englischen, muss aber dastehen: sonst
+         meldet Lint MissingTranslation und bricht den Build ab. -->
+    <string name="snooze_minutes_chip">%1$d min</string>
     <string name="section_snooze_count">Snooze-Anzahl (maximal)</string>
+    <string name="snooze_times_chip">%1$d×</string>
     <string name="snooze_off">Aus</string>
     <string name="section_ring_timeout">Automatisch schlummern nach</string>
     <string name="section_ring_timeout_hint">Reagiert niemand, schlummert der Wecker nach dieser Zeit von selbst, statt endlos weiterzuvibrieren.</string>

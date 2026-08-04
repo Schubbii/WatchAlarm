@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Standardsprache Englisch. Deutsche Übersetzung: values-de/strings.xml -->
 <resources>
-    <string name="app_name">WatchAlarm</string>
+    <string name="app_name" translatable="false">WatchAlarm</string>
 
     <!-- Liste -->
     <string name="title_alarms">Alarms</string>
     <string name="alarm_active_open">🔔 Alarm ringing — open</string>
     <string name="new_alarm">New alarm</string>
-    <string name="version_label">v %1$s</string>
+    <string name="version_label" translatable="false">v %1$s</string>
 
     <!-- Editor -->
     <string name="title_edit_alarm">Edit</string>
