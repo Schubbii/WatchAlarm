@@ -12,14 +12,16 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
   eingeschalteten Zustand ein Vollbild-Screen zum Ausschalten (mit Stopp
   und Schlummern).
 - Stopp auf einem Gerät beendet den Alarm auf beiden.
-- 🛟 Zusätzliches Netz: 5-Minuten-Timeout (danach automatisch Schlummern
-  bzw. Stopp), damit die Uhr nie endlos weitervibriert.
+- 🛟 Zusätzliches Netz: Reagiert niemand, schlummert der Wecker nach einer
+  einstellbaren Zeit von selbst (Standard **30 Minuten**, wählbar in
+  5er-Schritten), damit die Uhr nie endlos weitervibriert.
 
 ## Features
 
 - ⏰ Uhrzeit, Bezeichnung, Wochentags-Wiederholung (auf beiden Geräten
   einstellbar)
-- 😴 Snooze konfigurierbar: Dauer (3–30 min) und maximale Anzahl (0–10×)
+- 😴 Snooze konfigurierbar: Dauer (3–30 min), maximale Anzahl (0–10×) und
+  Klingeldauer bis zum automatischen Schlummern (5–30 min)
 - 🔄 Ständige Synchronisation zwischen Uhr und Handy über die **Wearable
   Data Layer API** — Änderungen von **beiden** Seiten kommen an, geordnet
   über einen geräteunabhängigen Lamport-Versionszähler (kein Wanduhr-

@@ -399,6 +399,9 @@ private fun EditorScreen(
     }
     var snoozeMinutes by rememberSaveable { mutableStateOf(initial?.snoozeMinutes ?: 5) }
     var maxSnoozes by rememberSaveable { mutableStateOf(initial?.maxSnoozes ?: 3) }
+    var ringTimeoutMinutes by rememberSaveable {
+        mutableStateOf(initial?.ringTimeoutMinutes ?: Alarm.DEFAULT_RING_TIMEOUT_MINUTES)
+    }
 
     val weekDays = rememberWeekDays()
 
@@ -526,6 +529,32 @@ private fun EditorScreen(
                 }
             }
 
+            Column {
+                Text(
+                    stringResource(R.string.section_ring_timeout),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Alarm.RING_TIMEOUT_CHOICES.forEach { min ->
+                        FilterChip(
+                            selected = ringTimeoutMinutes == min,
+                            onClick = { ringTimeoutMinutes = min },
+                            label = { Text(stringResource(R.string.snooze_minutes_chip, min)) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.section_ring_timeout_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Text(
                 stringResource(R.string.editor_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -543,6 +572,7 @@ private fun EditorScreen(
                             repeatDays = repeatDays,
                             snoozeMinutes = snoozeMinutes,
                             maxSnoozes = maxSnoozes,
+                            ringTimeoutMinutes = ringTimeoutMinutes,
                         )
                     )
                 },

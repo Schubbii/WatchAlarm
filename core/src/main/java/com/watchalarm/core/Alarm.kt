@@ -26,6 +26,12 @@ data class Alarm(
     val repeatDays: Set<Int> = emptySet(),
     val snoozeMinutes: Int = 5,
     val maxSnoozes: Int = 3,
+    /**
+     * Klingeldauer ohne Reaktion, danach wird automatisch geschlummert.
+     * Sicherheitsnetz, damit die Uhr nicht endlos weitervibriert, wenn sie
+     * gar nicht am Handgelenk ist.
+     */
+    val ringTimeoutMinutes: Int = DEFAULT_RING_TIMEOUT_MINUTES,
 ) {
 
     val repeating: Boolean get() = repeatDays.isNotEmpty()
@@ -69,9 +75,20 @@ data class Alarm(
         put("repeatDays", JSONArray(repeatDays.toList()))
         put("snoozeMinutes", snoozeMinutes)
         put("maxSnoozes", maxSnoozes)
+        put("ringTimeoutMinutes", ringTimeoutMinutes)
     }
 
     companion object {
+
+        /**
+         * 30 Minuten. Vorher waren es 5 — das war als Akkuschutz gedacht,
+         * hat den Wecker aber mitten in der Nacht leise gemacht, während
+         * man noch schlief.
+         */
+        const val DEFAULT_RING_TIMEOUT_MINUTES = 30
+
+        /** Auswahl im Editor: 5er-Schritte. */
+        val RING_TIMEOUT_CHOICES = listOf(5, 10, 15, 20, 25, 30)
 
         fun fromJson(o: JSONObject): Alarm {
             val days = mutableSetOf<Int>()
@@ -87,6 +104,11 @@ data class Alarm(
                 repeatDays = days,
                 snoozeMinutes = o.optInt("snoozeMinutes", 5),
                 maxSnoozes = o.optInt("maxSnoozes", 3),
+                // Ältere Stände kennen das Feld nicht -> neuer Standardwert.
+                ringTimeoutMinutes = o.optInt(
+                    "ringTimeoutMinutes",
+                    DEFAULT_RING_TIMEOUT_MINUTES
+                ),
             )
         }
 

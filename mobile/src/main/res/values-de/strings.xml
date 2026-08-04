@@ -17,6 +17,8 @@
     <string name="section_snooze_duration">Snooze-Dauer</string>
     <string name="section_snooze_count">Snooze-Anzahl (maximal)</string>
     <string name="snooze_off">Aus</string>
+    <string name="section_ring_timeout">Automatisch schlummern nach</string>
+    <string name="section_ring_timeout_hint">Reagiert niemand, schlummert der Wecker nach dieser Zeit von selbst, statt endlos weiterzuvibrieren.</string>
     <string name="editor_hint">Die Uhr vibriert, das Handy zeigt den Stopp-Screen. Ausgeschaltet wird am Handy.</string>
     <string name="save">Speichern</string>
 

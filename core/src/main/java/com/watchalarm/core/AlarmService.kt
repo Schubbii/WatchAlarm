@@ -28,7 +28,7 @@ import androidx.core.app.NotificationCompat
  * - Ausgeschaltet wird immer am Handy. Die Uhr bietet einen Notfall-Stopp
  *   nur, wenn das Handy nicht verbunden ist — das regelt die Klingel-
  *   Activity der Uhr.
- * - Sicherheitsnetz: nach [RING_TIMEOUT_MS] automatisch Snooze bzw. Stopp,
+ * - Sicherheitsnetz: nach [Alarm.ringTimeoutMinutes] automatisch Snooze bzw. Stopp,
  *   damit die Uhr nie endlos vibriert.
  */
 class AlarmService : Service() {
@@ -93,7 +93,8 @@ class AlarmService : Service() {
         // Ohne WakeLock kann die CPU wieder schlafen, sobald der Bildschirm
         // aus ist — dann feuert der Timeout unten nicht und das Vibrations-
         // muster bricht auf manchen Uhren ab.
-        acquireWakeLock()
+        val timeoutMs = ringTimeoutMs(alarm)
+        acquireWakeLock(timeoutMs)
 
         createChannel()
         val notification = buildNotification(alarm)
@@ -118,8 +119,12 @@ class AlarmService : Service() {
         if (isWatch) startVibration()
 
         handler.removeCallbacks(timeoutRunnable)
-        handler.postDelayed(timeoutRunnable, RING_TIMEOUT_MS)
+        handler.postDelayed(timeoutRunnable, timeoutMs)
     }
+
+    /** Klingeldauer dieses Weckers in Millis (mindestens eine Minute). */
+    private fun ringTimeoutMs(alarm: Alarm): Long =
+        alarm.ringTimeoutMinutes.coerceAtLeast(1) * 60_000L
 
     private fun onTimeout() {
         val id = currentAlarmId ?: return
@@ -175,7 +180,7 @@ class AlarmService : Service() {
 
     // ------------------------------------------------------------- wakelock
 
-    private fun acquireWakeLock() {
+    private fun acquireWakeLock(timeoutMs: Long) {
         if (wakeLock?.isHeld == true) return
         try {
             val pm = getSystemService(PowerManager::class.java) ?: return
@@ -183,7 +188,7 @@ class AlarmService : Service() {
                 setReferenceCounted(false)
                 // Harte Obergrenze, damit ein hängender Service den Akku
                 // nicht leersaugt.
-                acquire(RING_TIMEOUT_MS + 30_000L)
+                acquire(timeoutMs + 30_000L)
             }
         } catch (e: Exception) {
             Log.w(TAG, "WakeLock nicht verfügbar", e)
@@ -266,9 +271,6 @@ class AlarmService : Service() {
 
         const val CHANNEL_ID = "watchalarm_ring"
         const val NOTIFICATION_ID = 1001
-
-        /** Maximale Klingeldauer, danach Auto-Snooze bzw. Auto-Stopp. */
-        const val RING_TIMEOUT_MS = 5 * 60 * 1000L
 
         /**
          * Alarm beenden. Läuft der Service gerade, wird er gestoppt;

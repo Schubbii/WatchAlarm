@@ -23,6 +23,8 @@
     <string name="section_snooze_count">Maximum snoozes</string>
     <string name="snooze_off">Off</string>
     <string name="snooze_times_chip">%1$d×</string>
+    <string name="section_ring_timeout">Auto-snooze after</string>
+    <string name="section_ring_timeout_hint">If nobody reacts, the alarm snoozes by itself after this time instead of vibrating forever.</string>
     <string name="editor_hint">The watch vibrates, the phone shows the stop screen. You turn the alarm off on the phone.</string>
     <string name="save">Save</string>
 
