@@ -35,8 +35,13 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
 | `mobile` | Handy-App (Jetpack Compose, Material 3): Alarmliste, Editor (Zeit, Bezeichnung, Wochentage, Snooze), Vollbild-Stopp-Ansicht |
 | `wear`   | Wear-OS-App (Compose for Wear OS): Alarmliste mit Schaltern, einfacher Editor, Vibrations-/Stopp-Ansicht mit Verbindungs-Überwachung |
 
-Beide Apps verwenden dieselbe `applicationId` (`com.watchalarm`) — Voraussetzung
+Beide Apps verwenden dieselbe `applicationId` (`com.Rise.Alarm`) — Voraussetzung
 dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
+
+> **Namensgebung:** Im Store und im Launcher heißt die App **RiseAlarm**.
+> Repository, Gradle-Module und Kotlin-Pakete (`com.watchalarm.*`) tragen
+> weiterhin den Arbeitstitel WatchAlarm — die sieht niemand von außen, und ein
+> Umbenennen brächte nur Bewegung ohne Nutzen.
 
 ## Wie die Synchronisation funktioniert
 

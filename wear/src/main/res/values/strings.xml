@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Standardsprache Englisch. Deutsche Übersetzung: values-de/strings.xml -->
 <resources>
-    <string name="app_name" translatable="false">WatchAlarm</string>
+    <string name="app_name" translatable="false">RiseAlarm</string>
 
     <!-- Liste -->
     <string name="title_alarms">Alarms</string>

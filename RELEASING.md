@@ -1,7 +1,7 @@
 # Veröffentlichen
 
-WatchAlarm besteht aus **zwei Artefakten in einer einzigen Play-Eintragung**:
-Handy-App und Uhr-App teilen sich die `applicationId` `com.watchalarm`. Google
+RiseAlarm besteht aus **zwei Artefakten in einer einzigen Play-Eintragung**:
+Handy-App und Uhr-App teilen sich die `applicationId` `com.Rise.Alarm`. Google
 Play liefert anhand des `<uses-feature android:name="android.hardware.type.watch">`
 im Wear-Manifest automatisch das passende an das jeweilige Gerät aus — und
 schiebt die Uhr-App selbstständig auf die gekoppelte Uhr, sobald die Handy-App
@@ -64,7 +64,7 @@ brauchen. Ohne sie wird die Veröffentlichung abgelehnt:
 
 | Thema | Wo | Begründung |
 |---|---|---|
-| **Vollbild-Benachrichtigung** (`USE_FULL_SCREEN_INTENT`) | App-Inhalte → Deklaration | Nur Wecker- und Anruf-Apps erhalten sie. WatchAlarm ist ein Wecker: Der Vollbild-Screen ist der einzige Weg, den Alarm bei gesperrtem Bildschirm zu beenden. |
+| **Vollbild-Benachrichtigung** (`USE_FULL_SCREEN_INTENT`) | App-Inhalte → Deklaration | Nur Wecker- und Anruf-Apps erhalten sie. RiseAlarm ist ein Wecker: Der Vollbild-Screen ist der einzige Weg, den Alarm bei gesperrtem Bildschirm zu beenden. |
 | **Exakte Alarme** (`USE_EXACT_ALARM`) | App-Inhalte → Deklaration | Ein Wecker muss auf die Minute genau auslösen; ungenaue Alarme wären zweckwidrig. |
 | **Foreground-Service-Typ** (`systemExempted`) | App-Inhalte → Deklaration | Meist mit kurzem Demo-Video. **Riskantester Punkt:** Google legt `systemExempted` eng aus. Falls abgelehnt, ist der Ausweg `mediaPlayback` oder `shortService` — dann muss aber `AlarmService` mitziehen. |
 

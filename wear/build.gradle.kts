@@ -32,7 +32,7 @@ android {
     defaultConfig {
         // Muss identisch mit der Handy-App sein, damit die Data Layer API
         // beide Apps als Paar erkennt.
-        applicationId = "com.watchalarm"
+        applicationId = "com.Rise.Alarm"
         minSdk = 30
         targetSdk = 35
         // Play verlangt für Uhr- und Handy-Artefakt derselben App-Eintragung

@@ -1,10 +1,10 @@
-# Datenschutzerklärung — WatchAlarm
+# Datenschutzerklärung — RiseAlarm
 
 Stand: siehe Datum des letzten Commits an dieser Datei.
 
 ## Kurzfassung
 
-WatchAlarm sammelt keine personenbezogenen Daten, überträgt nichts an Server
+RiseAlarm sammelt keine personenbezogenen Daten, überträgt nichts an Server
 des Entwicklers oder an Dritte und enthält weder Werbung noch Analyse- oder
 Tracking-Bibliotheken.
 

@@ -35,7 +35,7 @@ android {
     defaultConfig {
         // Muss identisch mit der Wear-App sein, damit die Data Layer API
         // beide Apps als Paar erkennt.
-        applicationId = "com.watchalarm"
+        applicationId = "com.Rise.Alarm"
         minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode
