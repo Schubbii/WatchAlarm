@@ -7,6 +7,9 @@
     <string name="title_alarms">Alarms</string>
     <string name="alarm_active_open">🔔 Alarm ringing — open</string>
     <string name="new_alarm">New alarm</string>
+    <!-- Schlafdauer bis zum Klingeln; der Text kommt aus core, hier nur
+         das Symbol davor — deshalb nicht zu übersetzen. -->
+    <string name="sleep_duration" translatable="false">😴 %1$s</string>
     <string name="version_label" translatable="false">v %1$s</string>
 
     <!-- Editor -->

@@ -57,6 +57,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,16 +72,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
+import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -191,6 +197,34 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     }
 }
 
+// ------------------------------------------------------------- Schlafdauer
+
+/**
+ * Aktuelle Zeit, die sich zur vollen Minute selbst aktualisiert — Grundlage
+ * der Schlafdauer-Anzeige, damit "noch 7 Std. 30 Min." nicht stehen bleibt,
+ * während die App offen ist.
+ *
+ * Der Takt läuft nur, solange die App im Vordergrund ist (repeatOnLifecycle);
+ * im Hintergrund sieht ohnehin niemand die Liste.
+ */
+@Composable
+private fun rememberCurrentMinute(): Long {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val current = System.currentTimeMillis()
+                now = current
+                // Auf die nächste volle Minute takten, nicht stur 60 Sekunden
+                // warten: so springt die Anzeige zusammen mit der Uhrzeit.
+                delay(60_000L - current % 60_000L)
+            }
+        }
+    }
+    return now
+}
+
 // -------------------------------------------------------------- Wochentage
 
 /** Ein Wochentag mit der Calendar-Konstante, die [Alarm.repeatDays] nutzt. */
@@ -243,6 +277,7 @@ private fun ListScreen(
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val now = rememberCurrentMinute()
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
         floatingActionButton = {
@@ -315,7 +350,12 @@ private fun ListScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(alarms, key = { it.id }) { alarm ->
-                            AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                            AlarmCard(
+                                alarm = alarm,
+                                now = now,
+                                onClick = { onEdit(alarm) },
+                                onToggle = { onToggle(alarm, it) },
+                            )
                         }
                     }
                 }
@@ -331,10 +371,15 @@ private fun ListScreen(
 }
 
 @Composable
-private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
     val context = LocalContext.current
     val weekDays = rememberWeekDays()
     val daysLabel = repeatDaysLabel(alarm.repeatDays, weekDays)
+    // Nur für aktive Wecker: bei ausgeschaltetem Alarm gäbe es keinen
+    // Zeitpunkt, bis zu dem man schlafen könnte.
+    val sleepDuration = remember(alarm, now) {
+        if (alarm.enabled) SleepDuration.formatUntil(context, alarm, now) else null
+    }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -360,6 +405,13 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> 
                 }
                 if (subtitle.isNotBlank()) {
                     Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (sleepDuration != null) {
+                    Text(
+                        stringResource(R.string.sleep_duration, sleepDuration),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)

@@ -9,6 +9,8 @@
     <string name="full_screen_intent_warning">⚠️ Full-screen notifications are off. Without them no stop screen appears when the alarm rings. Tap to turn them on.</string>
     <string name="empty_list">No alarms yet.\nTap + to create one.</string>
     <string name="repeat_daily">Daily</string>
+    <!-- Schlafdauer bis zum Klingeln, %1$s kommt aus core (z. B. "7 h 30 min") -->
+    <string name="sleep_duration">😴 %1$s of sleep</string>
     <string name="version_label" translatable="false">v %1$s</string>
 
     <!-- Editor -->

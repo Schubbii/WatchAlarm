@@ -103,4 +103,7 @@ dependencies {
     implementation("androidx.wear.compose:compose-foundation:1.4.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    // LocalLifecycleOwner für Compose; die gleichnamige API in
+    // compose.ui ist ab 1.7 veraltet.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 }

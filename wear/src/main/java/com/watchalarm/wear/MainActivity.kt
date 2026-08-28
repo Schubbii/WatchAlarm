@@ -44,6 +44,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.items
@@ -66,8 +69,10 @@ import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
+import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
 import java.text.DateFormatSymbols
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -177,6 +182,29 @@ private fun WearApp() {
     }
 }
 
+// ------------------------------------------------------------- Schlafdauer
+
+/**
+ * Aktuelle Zeit, die sich zur vollen Minute selbst aktualisiert — sonst
+ * bliebe die Schlafdauer in der Liste stehen. Läuft nur im Vordergrund.
+ */
+@Composable
+private fun rememberCurrentMinute(): Long {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val current = System.currentTimeMillis()
+                now = current
+                // Auf die nächste volle Minute takten statt stur 60 Sekunden.
+                delay(60_000L - current % 60_000L)
+            }
+        }
+    }
+    return now
+}
+
 // ------------------------------------------------------------------- Liste
 
 @Composable
@@ -189,6 +217,7 @@ private fun WatchList(
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val now = rememberCurrentMinute()
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -209,12 +238,29 @@ private fun WatchList(
                 }
             }
             items(alarms, key = { it.id }) { alarm ->
+                // Zweitzeile: bei aktivem Wecker die Schlafdauer bis zum
+                // Klingeln, dahinter die Bezeichnung. Auf der Uhr ist nur
+                // eine Zeile Platz und die wird hinten abgeschnitten —
+                // deshalb steht die Dauer vorn.
+                val secondary = remember(alarm, now) {
+                    listOfNotNull(
+                        if (alarm.enabled) {
+                            context.getString(
+                                R.string.sleep_duration,
+                                SleepDuration.formatUntil(context, alarm, now),
+                            )
+                        } else {
+                            null
+                        },
+                        alarm.label.takeIf { it.isNotBlank() },
+                    ).joinToString(" · ")
+                }
                 SplitToggleChip(
                     checked = alarm.enabled,
                     onCheckedChange = { onToggle(alarm, it) },
                     onClick = { onEdit(alarm) },
                     label = { Text(alarm.formattedTime(context)) },
-                    secondaryLabel = { if (alarm.label.isNotBlank()) Text(alarm.label) },
+                    secondaryLabel = { if (secondary.isNotBlank()) Text(secondary) },
                     toggleControl = { Switch(checked = alarm.enabled) },
                     modifier = Modifier.fillMaxWidth(),
                 )

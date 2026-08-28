@@ -20,6 +20,9 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
 
 - ⏰ Uhrzeit, Bezeichnung, Wochentags-Wiederholung (auf beiden Geräten
   einstellbar)
+- ⏳ **Schlafdauer** in der Liste: Zeit von jetzt bis zum nächsten Klingeln
+  (z. B. „😴 7 Std. 30 Min. Schlaf“), auf Handy und Uhr, minütlich
+  aktualisiert und inklusive eines laufenden Snooze
 - 😴 Snooze konfigurierbar: Dauer (3–30 min), maximale Anzahl (0–10×) und
   Klingeldauer bis zum automatischen Schlummern (5–30 min)
 - 🔄 Ständige Synchronisation zwischen Uhr und Handy über die **Wearable

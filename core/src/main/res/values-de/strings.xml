@@ -6,4 +6,11 @@
     <string name="core_snooze">Schlummern</string>
     <string name="core_stop">Stopp</string>
     <string name="core_dismiss_on_phone">Am Handy ausschalten</string>
+
+    <!-- Schlafdauer (Zeit bis zum Klingeln) -->
+    <string name="core_duration_days_hours">%1$d T %2$d Std.</string>
+    <string name="core_duration_days">%1$d T</string>
+    <string name="core_duration_hours_minutes">%1$d Std. %2$d Min.</string>
+    <string name="core_duration_hours">%1$d Std.</string>
+    <string name="core_duration_minutes">%1$d Min.</string>
 </resources>

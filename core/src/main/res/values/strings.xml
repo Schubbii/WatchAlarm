@@ -10,4 +10,11 @@
     <string name="core_snooze">Snooze</string>
     <string name="core_stop">Stop</string>
     <string name="core_dismiss_on_phone">Turn off on your phone</string>
+
+    <!-- Schlafdauer (Zeit bis zum Klingeln) -->
+    <string name="core_duration_days_hours">%1$d d %2$d h</string>
+    <string name="core_duration_days">%1$d d</string>
+    <string name="core_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="core_duration_hours">%1$d h</string>
+    <string name="core_duration_minutes">%1$d min</string>
 </resources>
