@@ -149,10 +149,12 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun sendServiceAction(action: String) {
+        val intent = Intent(this, AlarmService::class.java).setAction(action)
+        // Gemeinten Alarm mitgeben: Der Service darf sich nicht darauf
+        // verlassen, dass sein In-Memory-Zustand noch auf ihn zeigt.
+        alarmState.value?.let { intent.putExtra(SyncContract.EXTRA_ALARM_ID, it.id) }
         // Activity ist im Vordergrund, der Service läuft bereits als FGS.
-        runCatching {
-            startService(Intent(this, AlarmService::class.java).setAction(action))
-        }
+        runCatching { startService(intent) }
     }
 
     @androidx.compose.runtime.Composable

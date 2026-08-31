@@ -36,7 +36,16 @@ class AlarmService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val handler = Handler(Looper.getMainLooper())
-    private var currentAlarmId: String? = null
+
+    /**
+     * Alle gerade klingelnden Alarme — normalerweise genau einer, aber zwei
+     * Alarme auf dieselbe Minute sind möglich. Die teilen sich Service,
+     * Benachrichtigung (eine [NOTIFICATION_ID]) und Vibration, ein einzelner
+     * Druck auf Stopp beendet also hörbar beide. Vorher merkte sich der
+     * Service nur den zuletzt gestarteten: Der erste blieb aktiviert und
+     * klingelte als Einmal-Alarm am nächsten Tag erneut.
+     */
+    private val ringingIds = linkedSetOf<String>()
     private val timeoutRunnable = Runnable { onTimeout() }
 
     private val isWatch by lazy { packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
@@ -51,17 +60,19 @@ class AlarmService : Service() {
                 if (id != null) startRinging(id, isSnooze) else stopSelf()
             }
             ACTION_DISMISS -> {
-                val fromRemote = intent.getBooleanExtra(EXTRA_FROM_REMOTE, false)
-                val id = currentAlarmId
-                stopRinging()
-                if (id != null) finalizeDismiss(this, id, notifyPeer = !fromRemote)
+                finalizeRinging(
+                    explicitId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID),
+                    fromRemote = intent.getBooleanExtra(EXTRA_FROM_REMOTE, false),
+                    snooze = false,
+                )
                 stopSelf()
             }
             ACTION_SNOOZE -> {
-                val fromRemote = intent.getBooleanExtra(EXTRA_FROM_REMOTE, false)
-                val id = currentAlarmId
-                stopRinging()
-                if (id != null) finalizeSnooze(this, id, notifyPeer = !fromRemote)
+                finalizeRinging(
+                    explicitId = intent.getStringExtra(SyncContract.EXTRA_ALARM_ID),
+                    fromRemote = intent.getBooleanExtra(EXTRA_FROM_REMOTE, false),
+                    snooze = true,
+                )
                 stopSelf()
             }
             else -> stopSelf()
@@ -80,13 +91,15 @@ class AlarmService : Service() {
 
     private fun startRinging(alarmId: String, isSnooze: Boolean) {
         // Receiver UND Klingel-Activity starten den Service — nur einmal starten.
-        if (alarmId == currentAlarmId) return
+        if (!ringingIds.add(alarmId)) return
         val alarm = AlarmStore.getAlarm(this, alarmId)
         if (alarm == null) {
-            stopSelf()
+            ringingIds.remove(alarmId)
+            // Nur beenden, wenn dieser Start der einzige war — sonst würde ein
+            // ins Leere laufender Start einen anderen laufenden Alarm abwürgen.
+            if (ringingIds.isEmpty()) stopSelf()
             return
         }
-        currentAlarmId = alarmId
         if (!isSnooze) RuntimeStore.clearSnoozeCount(this, alarmId)
         RuntimeStore.setRingingAlarmId(this, alarmId)
 
@@ -126,16 +139,47 @@ class AlarmService : Service() {
     private fun ringTimeoutMs(alarm: Alarm): Long =
         alarm.ringTimeoutMinutes.coerceAtLeast(1) * 60_000L
 
-    private fun onTimeout() {
-        val id = currentAlarmId ?: return
-        val alarm = AlarmStore.getAlarm(this, id)
+    /**
+     * Klingeln beenden und die betroffenen Alarme abschließen.
+     *
+     * [explicitId] ist die ID aus dem Intent — von der Benachrichtigungs-
+     * Aktion oder von der Gegenseite. Fehlt sie, greifen der Reihe nach die
+     * laufenden IDs und der persistierte Klingelzustand: Wurde der Prozess
+     * zwischendurch recycelt und stand nur noch die Benachrichtigung, war das
+     * In-Memory-Feld leer und der Druck auf Stopp verpuffte folgenlos.
+     */
+    private fun finalizeRinging(explicitId: String?, fromRemote: Boolean, snooze: Boolean) {
+        val ids = LinkedHashSet(ringingIds)
+        explicitId?.let { ids.add(it) }
+        if (ids.isEmpty()) RuntimeStore.getRingingAlarmId(this)?.let { ids.add(it) }
         stopRinging()
-        if (alarm != null && alarm.snoozeMinutes > 0 &&
-            RuntimeStore.getSnoozeCount(this, id) < alarm.maxSnoozes
-        ) {
-            finalizeSnooze(this, id, notifyPeer = false)
-        } else {
-            finalizeDismiss(this, id, notifyPeer = false)
+        ids.forEach { id ->
+            // Nur den von der Gegenseite benannten Alarm nicht zurückmelden —
+            // der ist dort bereits abgeschlossen. Alles Weitere ist eine
+            // lokale Entscheidung und muss gemeldet werden, sonst laufen die
+            // beiden Geräte auseinander.
+            val notifyPeer = !(fromRemote && id == explicitId)
+            if (snooze) {
+                finalizeSnooze(this, id, notifyPeer)
+            } else {
+                finalizeDismiss(this, id, notifyPeer)
+            }
+        }
+    }
+
+    private fun onTimeout() {
+        val ids = LinkedHashSet(ringingIds)
+        if (ids.isEmpty()) return
+        stopRinging()
+        ids.forEach { id ->
+            val alarm = AlarmStore.getAlarm(this, id)
+            if (alarm != null && alarm.snoozeMinutes > 0 &&
+                RuntimeStore.getSnoozeCount(this, id) < alarm.maxSnoozes
+            ) {
+                finalizeSnooze(this, id, notifyPeer = false)
+            } else {
+                finalizeDismiss(this, id, notifyPeer = false)
+            }
         }
         stopSelf()
     }
@@ -143,7 +187,7 @@ class AlarmService : Service() {
     private fun stopRinging() {
         stopVibration()
         handler.removeCallbacks(timeoutRunnable)
-        currentAlarmId = null
+        ringingIds.clear()
         RuntimeStore.setRingingAlarmId(this, null)
         sendBroadcast(Intent(SyncContract.ACTION_RING_STOPPED).setPackage(packageName))
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -245,17 +289,26 @@ class AlarmService : Service() {
         // Stopp/Snooze nur am Handy — die Uhr wird am Handy ausgeschaltet.
         if (!isWatch) {
             if (snoozeAvailable) {
-                builder.addAction(0, getString(R.string.core_snooze), servicePendingIntent(ACTION_SNOOZE, 2))
+                builder.addAction(0, getString(R.string.core_snooze), servicePendingIntent(ACTION_SNOOZE, 2, alarm.id))
             }
-            builder.addAction(0, getString(R.string.core_stop), servicePendingIntent(ACTION_DISMISS, 3))
+            builder.addAction(0, getString(R.string.core_stop), servicePendingIntent(ACTION_DISMISS, 3, alarm.id))
         }
         return builder.build()
     }
 
-    private fun servicePendingIntent(action: String, requestCode: Int): PendingIntent =
+    /**
+     * FLAG_UPDATE_CURRENT ist hier nicht optional: PendingIntents gelten als
+     * gleich, wenn Komponente, Action und Data übereinstimmen — Extras zählen
+     * nicht mit. Ein zweiter Alarm bekäme also den PendingIntent des ersten
+     * samt dessen [alarmId] wiederverwendet; erst das Flag schreibt die Extras
+     * neu.
+     */
+    private fun servicePendingIntent(action: String, requestCode: Int, alarmId: String): PendingIntent =
         PendingIntent.getService(
             this, requestCode,
-            Intent(this, AlarmService::class.java).setAction(action),
+            Intent(this, AlarmService::class.java)
+                .setAction(action)
+                .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -282,6 +335,7 @@ class AlarmService : Service() {
                     context.startService(
                         Intent(context, AlarmService::class.java)
                             .setAction(ACTION_DISMISS)
+                            .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
                             .putExtra(EXTRA_FROM_REMOTE, fromRemote)
                     )
                     return
@@ -299,6 +353,7 @@ class AlarmService : Service() {
                     context.startService(
                         Intent(context, AlarmService::class.java)
                             .setAction(ACTION_SNOOZE)
+                            .putExtra(SyncContract.EXTRA_ALARM_ID, alarmId)
                             .putExtra(EXTRA_FROM_REMOTE, fromRemote)
                     )
                     return

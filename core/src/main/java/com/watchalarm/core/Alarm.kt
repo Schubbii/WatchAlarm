@@ -115,6 +115,33 @@ data class Alarm(
         fun listToJson(alarms: List<Alarm>): String =
             JSONArray().apply { alarms.forEach { put(it.toJson()) } }.toString()
 
+        /**
+         * ASCII Unit Separator (0x1F) als Feldtrenner in [listSignature].
+         * Bewusst als [Char]-Code statt als Escape-Sequenz im String-Literal,
+         * damit kein Steuerzeichen im Quelltext steht.
+         */
+        private val FIELD_SEPARATOR = Char(31).toString()
+
+        /**
+         * Reihenfolge-unabhängige Signatur einer Liste: inhaltlich gleiche
+         * Bestände ergeben dieselbe Zeichenkette.
+         *
+         * Der JSON-Text taugt dafür nicht — die UI hängt einen bearbeiteten
+         * Alarm hinten an (`filter { … } + alarm`), und [repeatDays] ist ein
+         * Set, dessen Iterationsreihenfolge von der Einfügereihenfolge
+         * abhängt. Zwei Geräte könnten also denselben Bestand haben und
+         * trotzdem unterschiedliches JSON erzeugen. Deshalb hier alles
+         * sortiert und mit einem Trennzeichen, das in Labels nicht vorkommt.
+         */
+        fun listSignature(alarms: List<Alarm>): String =
+            alarms.sortedBy { it.id }.joinToString("\n") { a ->
+                listOf(
+                    a.id, a.hour, a.minute, a.label, a.enabled,
+                    a.repeatDays.sorted().joinToString(","),
+                    a.snoozeMinutes, a.maxSnoozes,
+                ).joinToString(FIELD_SEPARATOR)
+            }
+
         fun listFromJson(json: String): List<Alarm> = try {
             val arr = JSONArray(json)
             (0 until arr.length()).map { fromJson(arr.getJSONObject(it)) }

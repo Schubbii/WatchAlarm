@@ -125,9 +125,11 @@ class WatchRingActivity : ComponentActivity() {
     }
 
     private fun sendServiceAction(action: String) {
-        runCatching {
-            startService(Intent(this, AlarmService::class.java).setAction(action))
-        }
+        val intent = Intent(this, AlarmService::class.java).setAction(action)
+        // Gemeinten Alarm mitgeben: Der Service darf sich nicht darauf
+        // verlassen, dass sein In-Memory-Zustand noch auf ihn zeigt.
+        alarmState.value?.let { intent.putExtra(SyncContract.EXTRA_ALARM_ID, it.id) }
+        runCatching { startService(intent) }
     }
 
     @Composable

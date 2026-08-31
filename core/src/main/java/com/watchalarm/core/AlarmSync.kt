@@ -25,23 +25,36 @@ object AlarmSync {
     private const val TAG = "AlarmSync"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** Eigenen Alarmbestand (Liste + Version) als DataItem veröffentlichen. */
-    fun pushAlarms(context: Context) {
+    /**
+     * Einen bestimmten Stand als DataItem veröffentlichen.
+     *
+     * [json] und [version] werden übergeben statt hier gelesen: Die Coroutine
+     * läuft asynchron und deutlich später als der Aufrufer. Wurde in der
+     * Zwischenzeit geschrieben, veröffentlichte der frühere Code den Inhalt
+     * des einen Standes unter der Version eines anderen.
+     */
+    fun pushAlarms(context: Context, json: String, version: Long) {
         val appContext = context.applicationContext
         scope.launch {
             try {
                 val request = PutDataMapRequest.create(SyncContract.PATH_ALARMS).apply {
-                    dataMap.putString(
-                        SyncContract.KEY_ALARMS_JSON,
-                        Alarm.listToJson(AlarmStore.getAlarms(appContext))
-                    )
-                    dataMap.putLong(SyncContract.KEY_VERSION, AlarmStore.getVersion(appContext))
+                    dataMap.putString(SyncContract.KEY_ALARMS_JSON, json)
+                    dataMap.putLong(SyncContract.KEY_VERSION, version)
                 }.asPutDataRequest().setUrgent()
                 Wearable.getDataClient(appContext).putDataItem(request).await()
             } catch (e: Exception) {
                 Log.w(TAG, "pushAlarms fehlgeschlagen (Gegenseite offline?)", e)
             }
         }
+    }
+
+    /**
+     * Aktuellen Stand veröffentlichen. Der Schnappschuss wird *sofort* und
+     * atomar genommen, nicht erst in der Coroutine.
+     */
+    fun pushAlarms(context: Context) {
+        val snapshot = AlarmStore.snapshot(context)
+        pushAlarms(context, snapshot.json, snapshot.version)
     }
 
     /** Message (Dismiss/Snooze) an alle verbundenen Nodes senden. */
@@ -86,9 +99,14 @@ object AlarmSync {
                     buffer.release()
                 }
                 val json = bestJson
-                if (json != null && bestVersion > AlarmStore.getVersion(appContext)) {
+                if (json != null) {
+                    // applyRemote entscheidet selbst — höher, Gleichstand oder
+                    // älter — und stupst die Gegenseite an, wenn sie unseren
+                    // Stand noch braucht. Der frühere Doppelvergleich hier las
+                    // die Version zweimal und ließ den Gleichstand ungelöst.
                     AlarmStore.applyRemote(appContext, Alarm.listFromJson(json), bestVersion)
-                } else if (AlarmStore.getVersion(appContext) > bestVersion) {
+                } else {
+                    // Gar kein DataItem vorhanden: eigenen Stand anbieten.
                     pushAlarms(appContext)
                 }
             } catch (e: Exception) {
