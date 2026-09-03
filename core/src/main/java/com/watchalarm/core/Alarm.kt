@@ -13,9 +13,14 @@ import java.util.UUID
  * [repeatDays] enthält [java.util.Calendar]-Wochentagskonstanten
  * (SUNDAY=1 .. SATURDAY=7). Leer = einmaliger Alarm.
  *
- * Klingelverhalten ist bewusst fest verdrahtet: Die Uhr vibriert, das Handy
- * zeigt (lautlos) den Stopp-Screen. Ausgeschaltet wird am Handy; die Uhr
- * bietet einen Notfall-Stopp nur, wenn das Handy nicht verbunden ist.
+ * Das *Signal* ist fest verdrahtet: Die Uhr vibriert, das Handy zeigt
+ * (lautlos) den Stopp-Screen; Ton und Lautstärke sind nicht einstellbar. Die
+ * Fristen dagegen schon, pro Wecker — [snoozeMinutes], [maxSnoozes] und
+ * [ringTimeoutMinutes].
+ *
+ * Beendet wird auf beiden Geräten, und das Gerät sagt dem anderen per Message
+ * Bescheid. Schlummern bietet dagegen nur das Handy: Auf der Uhr trägt weder
+ * der Klingel-Screen noch die Benachrichtigung einen Schlummer-Button.
  */
 data class Alarm(
     val id: String = UUID.randomUUID().toString(),
@@ -150,11 +155,26 @@ data class Alarm(
                 ).joinToString(FIELD_SEPARATOR)
             }
 
-        fun listFromJson(json: String): List<Alarm> = try {
+        /**
+         * Liste einlesen — `null`, wenn der Text kein brauchbares JSON ist.
+         *
+         * Der Rückgabetyp ist bewusst nullable: Vorher lieferte ein
+         * Parse-Fehler `emptyList()`, und damit war „kaputt" von „der Nutzer
+         * hat den letzten Alarm gelöscht" nicht mehr zu unterscheiden. Ein
+         * beschädigtes DataItem mit höherer Version sah für den Empfänger
+         * deshalb aus wie eine gültige Löschung aller Alarme: Er übernahm die
+         * leere Liste als neuen Stand, meldete alle Alarme beim AlarmManager
+         * ab und schickte sie der Gegenseite zurück. Ein einziges kaputtes
+         * Paket löschte so den Bestand auf beiden Geräten.
+         *
+         * Eine leere, aber gültige Liste (`[]`) kommt weiter als `emptyList()`
+         * durch — das Löschen aller Alarme muss sich ja synchronisieren.
+         */
+        fun listFromJson(json: String): List<Alarm>? = try {
             val arr = JSONArray(json)
             (0 until arr.length()).map { fromJson(arr.getJSONObject(it)) }
         } catch (e: Exception) {
-            emptyList()
+            null
         }
     }
 }

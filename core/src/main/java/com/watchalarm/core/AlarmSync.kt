@@ -84,29 +84,41 @@ object AlarmSync {
             try {
                 val buffer = Wearable.getDataClient(appContext).dataItems.await()
                 var bestVersion = 0L
-                var bestJson: String? = null
+                var bestAlarms: List<Alarm>? = null
                 try {
                     for (item in buffer) {
                         if (item.uri.path != SyncContract.PATH_ALARMS) continue
                         val map = DataMapItem.fromDataItem(item).dataMap
                         val v = map.getLong(SyncContract.KEY_VERSION)
-                        if (v > bestVersion) {
-                            bestVersion = v
-                            bestJson = map.getString(SyncContract.KEY_ALARMS_JSON)
+                        if (v <= bestVersion) continue
+                        // Hier schon einlesen, nicht erst unten: Sonst gewinnt
+                        // ein beschädigtes DataItem allein wegen seiner hohen
+                        // Version das Rennen und verdrängt ein daneben
+                        // liegendes, heiles mit niedrigerer.
+                        val alarms = Alarm.listFromJson(
+                            map.getString(SyncContract.KEY_ALARMS_JSON) ?: ""
+                        )
+                        if (alarms == null) {
+                            Log.w(TAG, "Beschädigte Alarmliste (v$v) übersprungen")
+                            continue
                         }
+                        bestVersion = v
+                        bestAlarms = alarms
                     }
                 } finally {
                     buffer.release()
                 }
-                val json = bestJson
-                if (json != null) {
+                val alarms = bestAlarms
+                if (alarms != null) {
                     // applyRemote entscheidet selbst — höher, Gleichstand oder
                     // älter — und stupst die Gegenseite an, wenn sie unseren
                     // Stand noch braucht. Der frühere Doppelvergleich hier las
                     // die Version zweimal und ließ den Gleichstand ungelöst.
-                    AlarmStore.applyRemote(appContext, Alarm.listFromJson(json), bestVersion)
+                    AlarmStore.applyRemote(appContext, alarms, bestVersion)
                 } else {
-                    // Gar kein DataItem vorhanden: eigenen Stand anbieten.
+                    // Kein brauchbares DataItem — gar keines vorhanden oder nur
+                    // beschädigte: eigenen Stand anbieten, der ist dann die
+                    // einzige heile Quelle.
                     pushAlarms(appContext)
                 }
             } catch (e: Exception) {

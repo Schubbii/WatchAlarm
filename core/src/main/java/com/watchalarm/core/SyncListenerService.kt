@@ -1,5 +1,6 @@
 package com.watchalarm.core
 
+import android.util.Log
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
@@ -19,7 +20,15 @@ class SyncListenerService : WearableListenerService() {
             val map = DataMapItem.fromDataItem(event.dataItem).dataMap
             val json = map.getString(SyncContract.KEY_ALARMS_JSON) ?: continue
             val version = map.getLong(SyncContract.KEY_VERSION)
-            AlarmStore.applyRemote(this, Alarm.listFromJson(json), version)
+            // Beschädigtes Paket verwerfen statt es als „alle Alarme gelöscht"
+            // zu übernehmen. Der eigene Stand bleibt damit stehen; die
+            // Gegenseite heilt sich mit ihrer nächsten Änderung selbst.
+            val alarms = Alarm.listFromJson(json)
+            if (alarms == null) {
+                Log.w(TAG, "Beschädigte Alarmliste (v$version) verworfen")
+                continue
+            }
+            AlarmStore.applyRemote(this, alarms, version)
         }
     }
 
@@ -29,5 +38,9 @@ class SyncListenerService : WearableListenerService() {
             SyncContract.PATH_DISMISS -> AlarmService.dismiss(this, alarmId, fromRemote = true)
             SyncContract.PATH_SNOOZE -> AlarmService.snooze(this, alarmId, fromRemote = true)
         }
+    }
+
+    private companion object {
+        const val TAG = "SyncListenerService"
     }
 }

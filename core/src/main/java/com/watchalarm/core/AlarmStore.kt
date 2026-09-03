@@ -37,8 +37,13 @@ object AlarmStore {
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /**
+     * Lokaler Stand. Ist der gespeicherte Text unlesbar, bleibt nur die leere
+     * Liste — anders als bei einem empfangenen Stand gibt es hier keine heile
+     * zweite Quelle, auf die man zurückfallen könnte.
+     */
     fun getAlarms(context: Context): List<Alarm> =
-        Alarm.listFromJson(prefs(context).getString(KEY_ALARMS, null) ?: "[]")
+        Alarm.listFromJson(prefs(context).getString(KEY_ALARMS, null) ?: "[]") ?: emptyList()
 
     fun getAlarm(context: Context, id: String): Alarm? =
         getAlarms(context).firstOrNull { it.id == id }
@@ -60,7 +65,7 @@ object AlarmStore {
     @Synchronized
     fun snapshot(context: Context): Snapshot {
         val json = prefs(context).getString(KEY_ALARMS, null) ?: "[]"
-        return Snapshot(Alarm.listFromJson(json), json, getVersion(context))
+        return Snapshot(Alarm.listFromJson(json) ?: emptyList(), json, getVersion(context))
     }
 
     /** Schreibt den Stand. Aufrufer muss den Monitor halten. */

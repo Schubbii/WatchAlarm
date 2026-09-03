@@ -324,7 +324,11 @@ private fun WatchEditor(
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            // Wie in der Alarmliste: Ohne das hier bekommt auf diesem Screen
+            // überhaupt nichts den Fokus, und die Krone bzw. drehbare Lünette
+            // ist schlicht tot — Header, Picker-Reihe, Buttons und Hinweis
+            // passen auf kleinen runden Displays nicht zusammen aufs Bild.
+            modifier = Modifier.fillMaxSize().rotaryScroll(listState),
         ) {
             item {
                 ListHeader {

@@ -2,6 +2,7 @@ package com.watchalarm.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -112,13 +113,21 @@ class AlarmTest {
     @Test
     fun `alter Stand ohne ringTimeoutMinutes bekommt den Standard`() {
         val alt = "[{\"id\":\"a\",\"hour\":7,\"minute\":0,\"enabled\":true}]"
-        val alarm = Alarm.listFromJson(alt).single()
+        val alarm = Alarm.listFromJson(alt)!!.single()
         assertEquals(Alarm.DEFAULT_RING_TIMEOUT_MINUTES, alarm.ringTimeoutMinutes)
     }
 
+    /**
+     * Diese beiden Fälle müssen unterscheidbar bleiben: Eine leere Liste ist
+     * eine gültige Änderung (der letzte Alarm wurde gelöscht) und muss
+     * synchronisiert werden, ein Parse-Fehler dagegen darf nirgends als
+     * solche durchgehen — sonst löscht ein einziges beschädigtes DataItem den
+     * Bestand auf beiden Geräten.
+     */
     @Test
-    fun `kaputtes JSON ergibt eine leere Liste statt eines Absturzes`() {
-        assertEquals(emptyList<Alarm>(), Alarm.listFromJson("kein json"))
+    fun `kaputtes JSON ergibt null, leere Liste bleibt leere Liste`() {
+        assertNull(Alarm.listFromJson("kein json"))
+        assertEquals(emptyList<Alarm>(), Alarm.listFromJson("[]"))
     }
 
     // --------------------------------------------------------------- Signatur

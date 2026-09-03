@@ -26,9 +26,11 @@ import androidx.core.app.NotificationCompat
  * - **Uhr:** vibriert (Dauermuster), sonst nichts.
  * - **Handy:** still — zeigt nur die Vollbild-Benachrichtigung bzw. den
  *   Stopp-Screen ([AppRegistry.ringActivityClass]).
- * - Ausgeschaltet wird immer am Handy. Die Uhr bietet einen Notfall-Stopp
- *   nur, wenn das Handy nicht verbunden ist — das regelt die Klingel-
- *   Activity der Uhr.
+ * - Gestoppt wird auf beiden Geräten — die Uhr zeigt den Stopp-Button immer,
+ *   nicht nur bei getrennter Verbindung. Wer stoppt, meldet es der Gegenseite
+ *   per Message.
+ * - Schlummern bietet nur das Handy: Auf der Uhr lässt [buildNotification]
+ *   die Aktionen weg, und der Klingel-Screen der Uhr hat nur Stopp.
  * - Sicherheitsnetz: nach [Alarm.ringTimeoutMinutes] automatisch Snooze bzw. Stopp,
  *   damit die Uhr nie endlos vibriert.
  */
