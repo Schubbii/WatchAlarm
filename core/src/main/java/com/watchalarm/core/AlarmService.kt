@@ -84,12 +84,26 @@ class AlarmService : Service() {
         stopVibration()
         releaseWakeLock()
         handler.removeCallbacks(timeoutRunnable)
+        // Wird der Service abgeräumt, ohne dass stopRinging() lief — vom System
+        // abgeschossen etwa —, bliebe der Klingel-Merker stehen und das rote
+        // Banner klebte dauerhaft in beiden Listen. Nur räumen, wenn wir uns
+        // noch als klingelnd verstehen und der gespeicherte Alarm auch unserer
+        // ist; nach einem regulären stopRinging() ist ringingIds leer und hier
+        // nichts zu tun.
+        val persisted = RuntimeStore.getRingingAlarmId(this)
+        if (persisted != null && persisted in ringingIds) {
+            RuntimeStore.setRingingAlarmId(this, null)
+        }
         super.onDestroy()
     }
 
     // ---------------------------------------------------------------- ring
 
     private fun startRinging(alarmId: String, isSnooze: Boolean) {
+        // Läuft schon ein Alarm, sind wir bereits im Vordergrund — dann ist ein
+        // fehlgeschlagenes startForeground() unten nur eine nicht aktualisierte
+        // Benachrichtigung und kein Grund, den Service abzuräumen.
+        val alreadyForeground = ringingIds.isNotEmpty()
         // Receiver UND Klingel-Activity starten den Service — nur einmal starten.
         if (!ringingIds.add(alarmId)) return
         val alarm = AlarmStore.getAlarm(this, alarmId)
@@ -111,22 +125,9 @@ class AlarmService : Service() {
 
         createChannel()
         val notification = buildNotification(alarm)
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                // systemExempted: der für Wecker-Apps (USE_EXACT_ALARM) erlaubte
-                // Typ; darf auch aus dem Hintergrund gestartet werden.
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
-        } catch (e: Exception) {
-            // Manche Hersteller-ROMs verweigern den Vordergrund-Start.
-            // Dann lieber ohne Vordergrund-Service klingeln als abstürzen.
-            Log.w(TAG, "startForeground abgelehnt, Fallback auf Benachrichtigung", e)
-            runCatching {
-                getSystemService(NotificationManager::class.java)
-                    ?.notify(NOTIFICATION_ID, notification)
-            }
+        if (!enterForeground(notification) && !alreadyForeground) {
+            ringWithoutService(alarmId, notification)
+            return
         }
 
         if (isWatch) startVibration()
@@ -138,6 +139,63 @@ class AlarmService : Service() {
     /** Klingeldauer dieses Weckers in Millis (mindestens eine Minute). */
     private fun ringTimeoutMs(alarm: Alarm): Long =
         alarm.ringTimeoutMinutes.coerceAtLeast(1) * 60_000L
+
+    /**
+     * Vordergrund-Status anfordern.
+     *
+     * @return false, wenn das System ablehnt — manche Hersteller-ROMs tun das,
+     *   und ab API 34 kann auch der Typ selbst verweigert werden.
+     */
+    private fun enterForeground(notification: android.app.Notification): Boolean = try {
+        if (Build.VERSION.SDK_INT >= 34) {
+            // specialUse ist der dokumentierte Auffangtyp; die Begründung für
+            // Play steht als <property> im Manifest. Vorher stand hier
+            // systemExempted — ein Typ, der Apps vorbehalten ist, die von den
+            // Hintergrund-Einschränkungen ausgenommen sind. Ein Wecker gehört
+            // nicht dazu, das Weiterlaufen war also auf Kulanz des Systems
+            // gebaut.
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "startForeground abgelehnt", e)
+        false
+    }
+
+    /**
+     * Notklingeln ohne Vordergrund-Service.
+     *
+     * Der Service **darf** hier nicht weiterlaufen: startForegroundService()
+     * startet eine Systemuhr, die die App mit
+     * ForegroundServiceDidNotStartInTimeException abschießt, wenn nicht binnen
+     * weniger Sekunden ein startForeground() durchkommt. Der frühere Code fing
+     * die Ablehnung ab und klingelte einfach weiter — und stürzte deshalb
+     * Sekunden später garantiert ab, ausgerechnet auf den Geräten, denen der
+     * Fallback helfen sollte. Erst stopSelf() entschärft die Uhr.
+     *
+     * Übrig bleibt die Benachrichtigung: IMPORTANCE_HIGH mit Full-Screen-
+     * Intent, sie holt den Stopp-Screen also weiterhin nach vorne. Die
+     * Klingel-Activity startet den Service danach selbst noch einmal — dann
+     * aus dem Vordergrund, wo der Start nicht mehr an der Hintergrund-Sperre
+     * scheitert. Ist stattdessen der Typ grundsätzlich verboten, scheitert
+     * auch das und es bleibt bei der Benachrichtigung: auf der Uhr ohne
+     * Vibration und ohne den Auto-Snooze nach [Alarm.ringTimeoutMinutes].
+     *
+     * Der persistierte Klingel-Merker bleibt bewusst stehen — an ihm hängt die
+     * Zustellung von Stopp und Schlummern. [ringingIds] wird dagegen geleert,
+     * weil *dieser* Service nichts mehr klingelt; sonst würde onDestroy den
+     * Merker gleich mitlöschen.
+     */
+    private fun ringWithoutService(alarmId: String, notification: android.app.Notification) {
+        ringingIds.remove(alarmId)
+        Log.w(TAG, "Kein Vordergrund-Service möglich, klingele nur per Benachrichtigung")
+        runCatching {
+            getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification)
+        }
+        stopSelf()
+    }
 
     /**
      * Klingeln beenden und die betroffenen Alarme abschließen.
