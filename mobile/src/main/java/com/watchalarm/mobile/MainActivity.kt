@@ -137,7 +137,9 @@ class MainActivity : ComponentActivity() {
 private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     val context = LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
-    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
+    // Irgendeiner der klingelnden Alarme genuegt: Das Banner fuehrt auf den
+    // gemeinsamen Klingel-Screen, und gestoppt wird ohnehin alles zusammen.
+    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmIds(context).firstOrNull()) }
     // Über die ID statt über das Alarm-Objekt: Alarm ist nicht Parcelable,
     // und so überlebt der geöffnete Editor eine Drehung / Prozess-Neustart.
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -153,7 +155,7 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         val runtimePrefs = RuntimeStore.prefs(context)
         val runtimeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-            ringingId = RuntimeStore.getRingingAlarmId(context)
+            ringingId = RuntimeStore.getRingingAlarmIds(context).firstOrNull()
         }
         runtimePrefs.registerOnSharedPreferenceChangeListener(runtimeListener)
         onDispose {

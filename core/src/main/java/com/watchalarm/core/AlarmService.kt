@@ -93,15 +93,11 @@ class AlarmService : Service() {
         releaseWakeLock()
         handler.removeCallbacks(timeoutRunnable)
         // Wird der Service abgeräumt, ohne dass stopRinging() lief — vom System
-        // abgeschossen etwa —, bliebe der Klingel-Merker stehen und das rote
-        // Banner klebte dauerhaft in beiden Listen. Nur räumen, wenn wir uns
-        // noch als klingelnd verstehen und der gespeicherte Alarm auch unserer
-        // ist; nach einem regulären stopRinging() ist ringingIds leer und hier
-        // nichts zu tun.
-        val persisted = RuntimeStore.getRingingAlarmId(this)
-        if (persisted != null && persisted in ringingIds) {
-            RuntimeStore.setRingingAlarmId(this, null)
-        }
+        // abgeschossen etwa —, blieben die Klingel-Merker stehen und das rote
+        // Banner klebte dauerhaft in beiden Listen. Abgemeldet wird genau das,
+        // was dieser Service für klingelnd hielt; nach einem regulären
+        // stopRinging() ist ringingIds leer und hier nichts zu tun.
+        RuntimeStore.removeRingingAlarmIds(this, ringingIds)
         super.onDestroy()
     }
 
@@ -123,7 +119,7 @@ class AlarmService : Service() {
             return
         }
         if (!isSnooze) RuntimeStore.clearSnoozeCount(this, alarmId)
-        RuntimeStore.setRingingAlarmId(this, alarmId)
+        RuntimeStore.addRingingAlarmId(this, alarmId)
 
         val timeoutMs = ringTimeoutMs(alarm)
 
@@ -237,7 +233,7 @@ class AlarmService : Service() {
     private fun finalizeRinging(explicitId: String?, fromRemote: Boolean, snooze: Boolean) {
         val ids = LinkedHashSet(ringingIds)
         explicitId?.let { ids.add(it) }
-        if (ids.isEmpty()) RuntimeStore.getRingingAlarmId(this)?.let { ids.add(it) }
+        if (ids.isEmpty()) ids.addAll(RuntimeStore.getRingingAlarmIds(this))
         stopRinging()
         ids.forEach { id ->
             // Nur den von der Gegenseite benannten Alarm nicht zurückmelden —
@@ -275,7 +271,7 @@ class AlarmService : Service() {
         handler.removeCallbacks(timeoutRunnable)
         ringDeadlineUptime = 0L
         ringingIds.clear()
-        RuntimeStore.setRingingAlarmId(this, null)
+        RuntimeStore.clearRingingAlarmIds(this)
         sendBroadcast(Intent(SyncContract.ACTION_RING_STOPPED).setPackage(packageName))
         stopForeground(STOP_FOREGROUND_REMOVE)
         // Falls der Vordergrund-Start oben fehlgeschlagen ist, hängt die
@@ -432,7 +428,7 @@ class AlarmService : Service() {
          * andernfalls werden nur Zustand/Planung aktualisiert.
          */
         fun dismiss(context: Context, alarmId: String, fromRemote: Boolean) {
-            if (RuntimeStore.getRingingAlarmId(context) == alarmId) {
+            if (alarmId in RuntimeStore.getRingingAlarmIds(context)) {
                 try {
                     context.startService(
                         Intent(context, AlarmService::class.java)
@@ -450,7 +446,7 @@ class AlarmService : Service() {
 
         /** Alarm snoozen (analog zu [dismiss]). */
         fun snooze(context: Context, alarmId: String, fromRemote: Boolean) {
-            if (RuntimeStore.getRingingAlarmId(context) == alarmId) {
+            if (alarmId in RuntimeStore.getRingingAlarmIds(context)) {
                 try {
                     context.startService(
                         Intent(context, AlarmService::class.java)
