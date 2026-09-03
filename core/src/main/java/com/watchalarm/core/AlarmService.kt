@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -47,6 +48,13 @@ class AlarmService : Service() {
      */
     private val ringingIds = linkedSetOf<String>()
     private val timeoutRunnable = Runnable { onTimeout() }
+
+    /**
+     * Fälligkeit des Auto-Snooze als Uptime; 0, solange nichts klingelt.
+     * Klingeln zwei Wecker gleichzeitig, teilen sie sich diesen einen
+     * Zeitpunkt — siehe [scheduleRingTimeout].
+     */
+    private var ringDeadlineUptime = 0L
 
     private val isWatch by lazy { packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) }
 
@@ -117,11 +125,7 @@ class AlarmService : Service() {
         if (!isSnooze) RuntimeStore.clearSnoozeCount(this, alarmId)
         RuntimeStore.setRingingAlarmId(this, alarmId)
 
-        // Ohne WakeLock kann die CPU wieder schlafen, sobald der Bildschirm
-        // aus ist — dann feuert der Timeout unten nicht und das Vibrations-
-        // muster bricht auf manchen Uhren ab.
         val timeoutMs = ringTimeoutMs(alarm)
-        acquireWakeLock(timeoutMs)
 
         createChannel()
         val notification = buildNotification(alarm)
@@ -130,10 +134,34 @@ class AlarmService : Service() {
             return
         }
 
-        if (isWatch) startVibration()
+        scheduleRingTimeout(timeoutMs)
 
+        if (isWatch) startVibration()
+    }
+
+    /**
+     * Auto-Snooze und WakeLock auf die Klingeldauer dieses Weckers setzen.
+     *
+     * Klingeln zwei Wecker in derselben Minute, teilen sie sich Service,
+     * Runnable und WakeLock — die Frist wird deshalb nur verlängert, nie
+     * verkürzt. Seit die Klingeldauer pro Wecker einstellbar ist, legte sonst
+     * ein 5-Minuten-Wecker den daneben laufenden 30-Minuten-Wecker 25 Minuten
+     * zu früh schlummern: Beide hängen an [timeoutRunnable], und der zuletzt
+     * gestartete überschrieb die Frist des ersten.
+     *
+     * Ohne WakeLock kann die CPU wieder schlafen, sobald der Bildschirm aus
+     * ist — dann feuert der Timeout gar nicht und das Vibrationsmuster bricht
+     * auf manchen Uhren ab. Er muss deshalb dieselbe Frist abdecken; ein zu
+     * kurz greifender WakeLock wäre hier schlimmer als ein zu kurzer Timeout.
+     */
+    private fun scheduleRingTimeout(timeoutMs: Long) {
+        val due = SystemClock.uptimeMillis() + timeoutMs
+        if (due <= ringDeadlineUptime) return
+        ringDeadlineUptime = due
         handler.removeCallbacks(timeoutRunnable)
-        handler.postDelayed(timeoutRunnable, timeoutMs)
+        // postAtTime rechnet in derselben Uptime-Uhr wie oben.
+        handler.postAtTime(timeoutRunnable, due)
+        acquireWakeLock(timeoutMs)
     }
 
     /** Klingeldauer dieses Weckers in Millis (mindestens eine Minute). */
@@ -245,6 +273,7 @@ class AlarmService : Service() {
     private fun stopRinging() {
         stopVibration()
         handler.removeCallbacks(timeoutRunnable)
+        ringDeadlineUptime = 0L
         ringingIds.clear()
         RuntimeStore.setRingingAlarmId(this, null)
         sendBroadcast(Intent(SyncContract.ACTION_RING_STOPPED).setPackage(packageName))
@@ -282,16 +311,28 @@ class AlarmService : Service() {
 
     // ------------------------------------------------------------- wakelock
 
+    /**
+     * Gerufen wird nur aus [scheduleRingTimeout], und zwar nur, wenn die Frist
+     * dadurch länger wird — ein erneutes acquire() setzt die Frist nämlich neu,
+     * statt sie zu verlängern.
+     *
+     * Früher brach die Methode bei bereits gehaltenem Lock einfach ab. Das
+     * ging auf, solange alle Wecker dieselbe Klingeldauer hatten; seit sie
+     * einstellbar ist, bliebe die längere Dauer eines zweiten Weckers sonst
+     * ungedeckt. Weil der Lock nicht referenzgezählt ist, gibt ihn auch nach
+     * mehreren acquire() ein einzelnes [releaseWakeLock] wieder frei.
+     */
     private fun acquireWakeLock(timeoutMs: Long) {
-        if (wakeLock?.isHeld == true) return
         try {
             val pm = getSystemService(PowerManager::class.java) ?: return
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
-                setReferenceCounted(false)
-                // Harte Obergrenze, damit ein hängender Service den Akku
-                // nicht leersaugt.
-                acquire(timeoutMs + 30_000L)
-            }
+            val lock = wakeLock ?: pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+                .also {
+                    it.setReferenceCounted(false)
+                    wakeLock = it
+                }
+            // Harte Obergrenze, damit ein hängender Service den Akku
+            // nicht leersaugt.
+            lock.acquire(timeoutMs + WAKE_LOCK_GRACE_MS)
         } catch (e: Exception) {
             Log.w(TAG, "WakeLock nicht verfügbar", e)
         }
@@ -374,6 +415,9 @@ class AlarmService : Service() {
 
         private const val TAG = "AlarmService"
         private const val WAKE_LOCK_TAG = "WatchAlarm:ring"
+
+        /** Puffer, damit der WakeLock den Auto-Snooze noch überlebt. */
+        private const val WAKE_LOCK_GRACE_MS = 30_000L
 
         const val ACTION_START = "com.watchalarm.action.SERVICE_START"
         const val ACTION_DISMISS = "com.watchalarm.action.SERVICE_DISMISS"
