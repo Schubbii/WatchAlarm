@@ -29,6 +29,17 @@ jobs:
       - name: Debug-Builds
         run: ./gradlew :mobile:assembleDebug :wear:assembleDebug --stacktrace
 
+      - name: Unit-Tests
+        run: ./gradlew :core:testDebugUnitTest --stacktrace
+
+      - name: Testberichte hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: core/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: ignore
+
       - name: Lint
         run: ./gradlew :mobile:lintDebug :wear:lintDebug --stacktrace
 

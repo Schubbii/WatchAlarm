@@ -132,13 +132,21 @@ data class Alarm(
          * abhängt. Zwei Geräte könnten also denselben Bestand haben und
          * trotzdem unterschiedliches JSON erzeugen. Deshalb hier alles
          * sortiert und mit einem Trennzeichen, das in Labels nicht vorkommt.
+         *
+         * **Jedes synchronisierte Feld muss hier auftauchen.** Fehlt eines,
+         * halten zwei inhaltlich verschiedene Stände einander für gleich, und
+         * [AlarmStore.applyRemote] verwirft die Änderung schon im
+         * Gleichheits-Abbruch — noch bevor die Version betrachtet wird. Genau
+         * das war [ringTimeoutMinutes] passiert: eingeführt und in [toJson]
+         * aufgenommen, hier aber vergessen, sodass eine geänderte Klingeldauer
+         * das andere Gerät nie erreichte.
          */
         fun listSignature(alarms: List<Alarm>): String =
             alarms.sortedBy { it.id }.joinToString("\n") { a ->
                 listOf(
                     a.id, a.hour, a.minute, a.label, a.enabled,
                     a.repeatDays.sorted().joinToString(","),
-                    a.snoozeMinutes, a.maxSnoozes,
+                    a.snoozeMinutes, a.maxSnoozes, a.ringTimeoutMinutes,
                 ).joinToString(FIELD_SEPARATOR)
             }
 
