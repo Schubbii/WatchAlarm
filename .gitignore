@@ -9,6 +9,9 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Logcat-Mitschnitte vom Testen (phone.log, watch.log …).
+*.log
 *.keystore
 !debug.keystore
 
