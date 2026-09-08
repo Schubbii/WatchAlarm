@@ -38,8 +38,11 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,6 +62,7 @@ import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Picker
+import androidx.wear.compose.material.PickerState
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.SplitToggleChip
 import androidx.wear.compose.material.Switch
@@ -115,6 +119,82 @@ private fun Modifier.rotaryScroll(state: ScalingLazyListState): Modifier {
     return this
         .onRotaryScrollEvent { event ->
             scope.launch { state.scrollBy(event.verticalScrollPixels) }
+            true
+        }
+        .focusRequester(focusRequester)
+        .focusable()
+}
+
+/** Spalte im Editor, die die Krone gerade verstellt. */
+private const val COLUMN_HOUR = 0
+private const val COLUMN_MINUTE = 1
+private const val COLUMN_AM_PM = 2
+
+/** Höhe der Picker-Reihe. Sie zeigt drei Optionen übereinander. */
+private val PICKER_ROW_HEIGHT = 100.dp
+
+/** Aufsummierter Rotary-Weg. Bewusst kein State: niemand liest ihn beim Zeichnen. */
+private class RotaryAccumulator {
+    var pixels = 0f
+}
+
+/**
+ * Krone bzw. drehbare Lünette auf eine Picker-Spalte legen.
+ *
+ * Im Editor forderte vorher überhaupt nichts den Fokus an, und Wear liefert
+ * Rotary-Events nur an eine fokussierte Komponente — die Krone war dort also
+ * nicht bloß nicht am Scrollen, sondern schlicht tot.
+ *
+ * Der Picker springt in ganzen Optionen, die Events kommen aber als
+ * Pixelbetrag herein. Ein direktes `scrollBy()` ließe ihn zwischen zwei
+ * Optionen stehen, weil das Einrasten am Fling hängt und bei einem
+ * programmatischen Scroll gar nicht greift. Deshalb wird der Weg aufsummiert
+ * und erst bei genug davon eine Option weitergeschaltet.
+ *
+ * [active] sorgt dafür, dass immer nur eine Spalte den Fokus anfordert.
+ * [onClaim] holt ihn beim Berühren zu dieser Spalte — das muss über
+ * `pointerInput` laufen, denn Pickers eigenes `onSelected` hängt nur an den
+ * Semantics und feuert deshalb für Bedienungshilfen, nicht für einen
+ * gewöhnlichen Fingertipp.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun Modifier.rotaryPicker(
+    state: PickerState,
+    active: Boolean,
+    onClaim: () -> Unit,
+): Modifier {
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+    val accumulator = remember { RotaryAccumulator() }
+    // Genau die Strecke, die ein Finger ziehen müsste, um eine Option
+    // weiterzukommen — Rotary-Pixel und Wischweg sind dieselbe Einheit.
+    // Hergeleitet statt geraten: eine feste Pixelzahl wäre auf Uhren mit
+    // anderer Dichte mal zäh und mal übersprungen.
+    val pixelsPerOption = with(LocalDensity.current) { (PICKER_ROW_HEIGHT / 3f).toPx() }
+    LaunchedEffect(active) {
+        if (active) runCatching { focusRequester.requestFocus() }
+    }
+    return this
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    // Initial-Pass und nichts konsumieren: Der Picker soll die
+                    // Berührung danach ganz normal selbst verarbeiten.
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.changes.any { it.pressed }) onClaim()
+                }
+            }
+        }
+        .onRotaryScrollEvent { event ->
+            accumulator.pixels += event.verticalScrollPixels
+            val steps = (accumulator.pixels / pixelsPerOption).toInt()
+            if (steps != 0) {
+                accumulator.pixels -= steps * pixelsPerOption
+                val count = state.numberOfOptions
+                val next = ((state.selectedOption + steps) % count + count) % count
+                scope.launch { state.animateScrollToOption(next) }
+            }
             true
         }
         .focusRequester(focusRequester)
@@ -320,15 +400,20 @@ private fun WatchEditor(
     val amPmLabels = remember { DateFormatSymbols.getInstance().amPmStrings }
     val pickerWidth = if (is24Hour) 60.dp else 44.dp
 
+    // Welche Spalte die Krone verstellt. Standard ist die Stunde: Das ist der
+    // erste Wert, den man einstellt, und ohne Vorbelegung wäre die Krone beim
+    // Öffnen wieder wirkungslos.
+    var rotaryColumn by remember { mutableStateOf(COLUMN_HOUR) }
+
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             state = listState,
-            // Wie in der Alarmliste: Ohne das hier bekommt auf diesem Screen
-            // überhaupt nichts den Fokus, und die Krone bzw. drehbare Lünette
-            // ist schlicht tot — Header, Picker-Reihe, Buttons und Hinweis
-            // passen auf kleinen runden Displays nicht zusammen aufs Bild.
-            modifier = Modifier.fillMaxSize().rotaryScroll(listState),
+            // Hier bewusst kein rotaryScroll: Auf diesem Screen gehört die
+            // Krone den Pickern, gescrollt wird gewischt. Eine Krone, die die
+            // Liste verschiebt, statt die Uhrzeit zu stellen, wäre die
+            // deutlich schlechtere Hälfte des Tauschs.
+            modifier = Modifier.fillMaxSize(),
         ) {
             item {
                 ListHeader {
@@ -341,14 +426,20 @@ private fun WatchEditor(
             }
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Picker(
                         state = hourState,
                         contentDescription = stringResource(R.string.picker_hour),
-                        modifier = Modifier.width(pickerWidth).fillMaxSize(),
+                        onSelected = { rotaryColumn = COLUMN_HOUR },
+                        modifier = Modifier.width(pickerWidth).fillMaxSize()
+                            .rotaryPicker(
+                                state = hourState,
+                                active = rotaryColumn == COLUMN_HOUR,
+                                onClaim = { rotaryColumn = COLUMN_HOUR },
+                            ),
                     ) { index ->
                         Text(
                             if (is24Hour) "%02d".format(index)
@@ -360,7 +451,13 @@ private fun WatchEditor(
                     Picker(
                         state = minuteState,
                         contentDescription = stringResource(R.string.picker_minute),
-                        modifier = Modifier.width(pickerWidth).fillMaxSize(),
+                        onSelected = { rotaryColumn = COLUMN_MINUTE },
+                        modifier = Modifier.width(pickerWidth).fillMaxSize()
+                            .rotaryPicker(
+                                state = minuteState,
+                                active = rotaryColumn == COLUMN_MINUTE,
+                                onClaim = { rotaryColumn = COLUMN_MINUTE },
+                            ),
                     ) { index ->
                         Text("%02d".format(index), fontSize = 28.sp)
                     }
@@ -368,7 +465,13 @@ private fun WatchEditor(
                         Picker(
                             state = amPmState,
                             contentDescription = stringResource(R.string.picker_am_pm),
-                            modifier = Modifier.width(48.dp).fillMaxSize(),
+                            onSelected = { rotaryColumn = COLUMN_AM_PM },
+                            modifier = Modifier.width(48.dp).fillMaxSize()
+                                .rotaryPicker(
+                                    state = amPmState,
+                                    active = rotaryColumn == COLUMN_AM_PM,
+                                    onClaim = { rotaryColumn = COLUMN_AM_PM },
+                                ),
                         ) { index ->
                             Text(amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" }, fontSize = 20.sp)
                         }
