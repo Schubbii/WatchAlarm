@@ -66,7 +66,7 @@ brauchen. Ohne sie wird die Veröffentlichung abgelehnt:
 |---|---|---|
 | **Vollbild-Benachrichtigung** (`USE_FULL_SCREEN_INTENT`) | App-Inhalte → Deklaration | Nur Wecker- und Anruf-Apps erhalten sie. RiseAlarm ist ein Wecker: Der Vollbild-Screen ist der einzige Weg, den Alarm bei gesperrtem Bildschirm zu beenden. |
 | **Exakte Alarme** (`USE_EXACT_ALARM`) | App-Inhalte → Deklaration | Ein Wecker muss auf die Minute genau auslösen; ungenaue Alarme wären zweckwidrig. |
-| **Foreground-Service-Typ** (`systemExempted`) | App-Inhalte → Deklaration | Meist mit kurzem Demo-Video. **Riskantester Punkt:** Google legt `systemExempted` eng aus. Falls abgelehnt, ist der Ausweg `mediaPlayback` oder `shortService` — dann muss aber `AlarmService` mitziehen. |
+| **Foreground-Service-Typ** (`specialUse`) | App-Inhalte → Deklaration | Meist mit kurzem Demo-Video. Als Begründung dieselbe Formulierung wie im Manifest (`PROPERTY_SPECIAL_USE_FGS_SUBTYPE` in `core/src/main/AndroidManifest.xml`): Der Service muss laufen, bis der Nutzer den Alarm beendet. |
 
 Dazu:
 

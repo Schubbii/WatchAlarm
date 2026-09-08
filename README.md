@@ -69,6 +69,22 @@ dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
 
 Voraussetzungen: Android Studio (Ladybug oder neuer) bzw. Android SDK 35, JDK 17.
 
+> **JDK 17–21, nicht neuer.** Gradle 8.14 (die Wrapper-Version hier) kann die
+> Java-Version „25“ nicht parsen und bricht mit `IllegalArgumentException: 25`
+> schon beim Übersetzen der `.gradle.kts`-Skripte ab. Das sieht im Editor
+> harmlos aus, aber irreführend: Weil der Build gar nicht erst läuft, wird
+> `BuildConfig` nie erzeugt, und die IDE meldet stattdessen ein „unresolved
+> reference: BuildConfig“ mitten im Quelltext. Läuft das System auf einem
+> neueren JDK, zeigt man Gradle ein passendes — benutzerweit in
+> `~/.gradle/gradle.properties`, damit kein maschinenspezifischer Pfad ins
+> Repo wandert:
+>
+> ```properties
+> org.gradle.java.home=C:/Program Files/Java/jdk-21
+> ```
+>
+> Die CI ist nicht betroffen, sie richtet sich JDK 17 selbst ein.
+
 ```bash
 ./gradlew :mobile:assembleDebug   # Handy-APK
 ./gradlew :wear:assembleDebug     # Wear-OS-APK
@@ -110,8 +126,16 @@ des Geräts.
 
 - `USE_EXACT_ALARM` / `SCHEDULE_EXACT_ALARM` — exakte Weckzeiten
 - `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT` — Vollbild-Klingelansicht
-- `FOREGROUND_SERVICE(_SYSTEM_EXEMPTED)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
+- `FOREGROUND_SERVICE(_SPECIAL_USE)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
 - `RECEIVE_BOOT_COMPLETED` — Alarme nach Neustart wiederherstellen
+
+> **Warum `specialUse` und nicht `systemExempted`:** Letzteres ist Apps
+> vorbehalten, die ohnehin von den Hintergrund-Einschränkungen ausgenommen
+> sind (Geräteverwaltung, VPN, Notfall-Apps). `USE_EXACT_ALARM` erlaubt uns
+> den Start aus dem Hintergrund, macht die App aber nicht „system exempted“ —
+> der Typ kann beim `startForeground()` also abgelehnt werden. `specialUse`
+> ist der dokumentierte Auffangtyp; die Begründung für Play steht als
+> `<property>` direkt im Manifest.
 
 > Ab Android 14 ist `USE_FULL_SCREEN_INTENT` eine widerrufbare Berechtigung.
 > Fehlt sie, zeigt die Handy-App oben in der Liste einen Hinweis, der direkt
