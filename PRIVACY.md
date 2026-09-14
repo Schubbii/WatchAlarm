@@ -1,6 +1,6 @@
 # Datenschutzerklärung — RiseAlarm
 
-Stand: siehe Datum des letzten Commits an dieser Datei.
+Stand: 14. September 2026
 
 ## Kurzfassung
 

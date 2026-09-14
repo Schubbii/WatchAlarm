@@ -1,0 +1,37 @@
+# GitHub Pages — veröffentlicht die Datenschutzerklärung unter
+#   https://schubbii.github.io/WatchAlarm/privacy/
+# Google Play verlangt dafür eine öffentlich erreichbare URL.
+#
+# Einschalten (einmalig, im Browser): Repository → Settings → Pages →
+# Source „Deploy from a branch“, Branch „main“, Ordner „/ (root)“.
+# Danach baut GitHub die Seite bei jedem Push auf main neu.
+
+title: RiseAlarm
+lang: de
+theme: jekyll-theme-primer
+
+# Die App-Module sind kein Seiteninhalt; Jekyll soll sie gar nicht anfassen.
+exclude:
+  - core/
+  - mobile/
+  - wear/
+  - gradle/
+  - build/
+  - .github/
+  - .idea/
+  - gradlew
+  - gradlew.bat
+  - "*.kts"
+  - gradle.properties
+  - keystore.properties.example
+  - RELEASING.md
+
+# Feste, kurze URL für die Datenschutzerklärung — die Adresse landet in der
+# Play Console und darf sich später nicht mehr ändern. Über defaults statt
+# Front Matter, damit PRIVACY.md auf GitHub selbst sauber gerendert bleibt.
+defaults:
+  - scope:
+      path: "PRIVACY.md"
+    values:
+      permalink: /privacy/
+      title: Datenschutzerklärung

@@ -70,8 +70,11 @@ brauchen. Ohne sie wird die Veröffentlichung abgelehnt:
 
 Dazu:
 
-- **Datenschutzerklärung** — siehe `PRIVACY.md`, muss unter einer öffentlichen
-  URL erreichbar sein (z. B. GitHub Pages).
+- **Datenschutzerklärung** — `PRIVACY.md`, veröffentlicht über GitHub Pages
+  unter `https://schubbii.github.io/WatchAlarm/privacy/` (Konfiguration in
+  `_config.yml`). Pages muss einmalig unter Settings → Pages eingeschaltet
+  werden: Branch `main`, Ordner `/ (root)`. Diese URL gehört in die Console
+  und darf sich danach nicht mehr ändern.
 - **Data Safety** — die App sammelt und überträgt nichts an Dritte; die
   Synchronisation läuft ausschließlich Gerät↔Gerät über die Data Layer API.
 - **Wear-OS-Store-Eintrag** — eigene Screenshots von der Uhr, sonst erscheint
