@@ -19,7 +19,13 @@ class AlarmTriggerReceiver : BroadcastReceiver() {
             return
         }
 
-        RuntimeStore.setRingingAlarmId(context, alarmId)
+        // Den Klingel-Merker setzt bewusst erst AlarmService.startRinging, nicht
+        // schon hier: Der Service-Start unten kann abgelehnt werden, und auch
+        // die als Ausweichweg geplante Klingel-Activity kann blockiert sein.
+        // Vorher wurde der Merker trotzdem geschrieben, und da ihn nur
+        // stopRinging() wieder löscht, überlebte er in dem Fall sogar Neustarts:
+        // Beide Listen zeigten dauerhaft das rote "Alarm klingelt"-Banner für
+        // einen Alarm, der nie geklingelt hat.
         RuntimeStore.clearSnoozeUntil(context, alarmId)
 
         try {

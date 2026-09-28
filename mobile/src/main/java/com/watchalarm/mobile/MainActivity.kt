@@ -57,6 +57,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,17 +66,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
-import com.watchalarm.core.AppInfo
 import com.watchalarm.core.RuntimeStore
+import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.time.temporal.WeekFields
 import java.util.Calendar
+import java.util.Locale
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -84,18 +95,17 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Ab Android 14 ist "Vollbild-Benachrichtigung" eine eigene, vom Nutzer
-     * widerrufbare Berechtigung. Fehlt sie, erscheint beim Klingeln nur
-     * noch eine Benachrichtigung statt des Stopp-Screens — darauf weisen
-     * wir in der Liste hin. Bei jedem onResume neu prüfen, damit der
-     * Hinweis nach dem Erteilen sofort verschwindet.
+     * widerrufbare Berechtigung. Fehlt sie, erscheint beim Klingeln nur eine
+     * Benachrichtigung statt des Stopp-Screens — darauf weisen wir in der
+     * Liste hin. Bei jedem onResume neu prüfen, damit der Hinweis nach dem
+     * Erteilen sofort verschwindet.
      */
     private val fullScreenIntentBlocked = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Ab targetSdk 35 zeichnet Android immer randlos. Ohne
         // enableEdgeToEdge() erbt die Statusleiste die Icon-Farbe aus dem
-        // (dunklen) Plattform-Theme — im hellen Modus also weiße Icons auf
-        // hellem Grund, sprich unsichtbar.
+        // Plattform-Theme — im hellen Modus also weiß auf hell, unsichtbar.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
@@ -127,7 +137,9 @@ class MainActivity : ComponentActivity() {
 private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     val context = LocalContext.current
     var alarms by remember { mutableStateOf(AlarmStore.getAlarms(context)) }
-    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmId(context)) }
+    // Irgendeiner der klingelnden Alarme genuegt: Das Banner fuehrt auf den
+    // gemeinsamen Klingel-Screen, und gestoppt wird ohnehin alles zusammen.
+    var ringingId by remember { mutableStateOf(RuntimeStore.getRingingAlarmIds(context).firstOrNull()) }
     // Über die ID statt über das Alarm-Objekt: Alarm ist nicht Parcelable,
     // und so überlebt der geöffnete Editor eine Drehung / Prozess-Neustart.
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -143,7 +155,7 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         val runtimePrefs = RuntimeStore.prefs(context)
         val runtimeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-            ringingId = RuntimeStore.getRingingAlarmId(context)
+            ringingId = RuntimeStore.getRingingAlarmIds(context).firstOrNull()
         }
         runtimePrefs.registerOnSharedPreferenceChangeListener(runtimeListener)
         onDispose {
@@ -187,6 +199,72 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     }
 }
 
+// ------------------------------------------------------------- Schlafdauer
+
+/**
+ * Aktuelle Zeit, die sich zur vollen Minute selbst aktualisiert — Grundlage
+ * der Schlafdauer-Anzeige, damit "noch 7 Std. 30 Min." nicht stehen bleibt,
+ * während die App offen ist.
+ *
+ * Der Takt läuft nur, solange die App im Vordergrund ist (repeatOnLifecycle);
+ * im Hintergrund sieht ohnehin niemand die Liste.
+ */
+@Composable
+private fun rememberCurrentMinute(): Long {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val current = System.currentTimeMillis()
+                now = current
+                // Auf die nächste volle Minute takten, nicht stur 60 Sekunden
+                // warten: so springt die Anzeige zusammen mit der Uhrzeit.
+                delay(60_000L - current % 60_000L)
+            }
+        }
+    }
+    return now
+}
+
+// -------------------------------------------------------------- Wochentage
+
+/** Ein Wochentag mit der Calendar-Konstante, die [Alarm.repeatDays] nutzt. */
+private data class WeekDay(val calendarDay: Int, val label: String)
+
+private fun DayOfWeek.toCalendarDay(): Int =
+    if (this == DayOfWeek.SUNDAY) Calendar.SUNDAY else value + 1
+
+/**
+ * Wochentage in der Reihenfolge und Schreibweise der eingestellten Sprache —
+ * in Deutschland beginnt die Woche montags, in den USA sonntags, und die
+ * Kürzel unterscheiden sich ohnehin. Vorher war beides fest auf Deutsch
+ * verdrahtet.
+ */
+@Composable
+private fun rememberWeekDays(): List<WeekDay> {
+    // LocalConfiguration als Key: nach einem Sprachwechsel neu berechnen.
+    val configuration = LocalConfiguration.current
+    return remember(configuration) {
+        val locale = Locale.getDefault()
+        val firstDay = WeekFields.of(locale).firstDayOfWeek
+        (0L until 7L).map { offset ->
+            val day = firstDay.plus(offset)
+            WeekDay(
+                calendarDay = day.toCalendarDay(),
+                label = day.getDisplayName(TextStyle.SHORT, locale),
+            )
+        }
+    }
+}
+
+@Composable
+private fun repeatDaysLabel(days: Set<Int>, weekDays: List<WeekDay>): String = when {
+    days.isEmpty() -> ""
+    days.size == 7 -> stringResource(R.string.repeat_daily)
+    else -> weekDays.filter { it.calendarDay in days }.joinToString(" ") { it.label }
+}
+
 // ------------------------------------------------------------------- Liste
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -201,11 +279,12 @@ private fun ListScreen(
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val now = rememberCurrentMinute()
     Scaffold(
-        topBar = { TopAppBar(title = { Text("WatchAlarm") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
         floatingActionButton = {
             FloatingActionButton(onClick = onAdd) {
-                Icon(Icons.Filled.Add, contentDescription = "Alarm hinzufügen")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_alarm))
             }
         },
     ) { padding ->
@@ -222,7 +301,7 @@ private fun ListScreen(
                         ),
                     ) {
                         Text(
-                            "🔔 Alarm aktiv — tippen zum Ausschalten",
+                            stringResource(R.string.alarm_active_tap),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(16.dp),
@@ -249,8 +328,7 @@ private fun ListScreen(
                         ),
                     ) {
                         Text(
-                            "⚠️ Vollbild-Benachrichtigungen sind aus. Ohne sie erscheint " +
-                                "beim Klingeln kein Stopp-Screen. Tippen zum Einschalten.",
+                            stringResource(R.string.full_screen_intent_warning),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.padding(16.dp),
@@ -260,7 +338,7 @@ private fun ListScreen(
                 if (alarms.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "Noch keine Alarme.\nTippe auf +, um einen Wecker anzulegen.",
+                            stringResource(R.string.empty_list),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -274,13 +352,18 @@ private fun ListScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(alarms, key = { it.id }) { alarm ->
-                            AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                            AlarmCard(
+                                alarm = alarm,
+                                now = now,
+                                onClick = { onEdit(alarm) },
+                                onToggle = { onToggle(alarm, it) },
+                            )
                         }
                     }
                 }
             }
             Text(
-                "v ${AppInfo.VERSION}",
+                stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
@@ -290,8 +373,15 @@ private fun ListScreen(
 }
 
 @Composable
-private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
     val context = LocalContext.current
+    val weekDays = rememberWeekDays()
+    val daysLabel = repeatDaysLabel(alarm.repeatDays, weekDays)
+    // Nur für aktive Wecker: bei ausgeschaltetem Alarm gäbe es keinen
+    // Zeitpunkt, bis zu dem man schlafen könnte.
+    val sleepDuration = remember(alarm, now) {
+        if (alarm.enabled) SleepDuration.formatUntil(context, alarm, now) else null
+    }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -310,31 +400,25 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> 
                 )
                 val subtitle = buildString {
                     if (alarm.label.isNotBlank()) append(alarm.label)
-                    val days = repeatDaysLabel(alarm.repeatDays)
-                    if (days.isNotBlank()) {
+                    if (daysLabel.isNotBlank()) {
                         if (isNotEmpty()) append(" · ")
-                        append(days)
+                        append(daysLabel)
                     }
                 }
                 if (subtitle.isNotBlank()) {
                     Text(subtitle, style = MaterialTheme.typography.bodyMedium)
                 }
+                if (sleepDuration != null) {
+                    Text(
+                        stringResource(R.string.sleep_duration, sleepDuration),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
             Switch(checked = alarm.enabled, onCheckedChange = onToggle)
         }
     }
-}
-
-private val dayOrder = listOf(
-    Calendar.MONDAY to "Mo", Calendar.TUESDAY to "Di", Calendar.WEDNESDAY to "Mi",
-    Calendar.THURSDAY to "Do", Calendar.FRIDAY to "Fr", Calendar.SATURDAY to "Sa",
-    Calendar.SUNDAY to "So",
-)
-
-private fun repeatDaysLabel(days: Set<Int>): String = when {
-    days.isEmpty() -> ""
-    days.size == 7 -> "Täglich"
-    else -> dayOrder.filter { it.first in days }.joinToString(" ") { it.second }
 }
 
 /** Set<Int> ist nicht bundle-fähig, deshalb über eine Liste sichern. */
@@ -369,20 +453,37 @@ private fun EditorScreen(
     }
     var snoozeMinutes by rememberSaveable { mutableStateOf(initial?.snoozeMinutes ?: 5) }
     var maxSnoozes by rememberSaveable { mutableStateOf(initial?.maxSnoozes ?: 3) }
+    var ringTimeoutMinutes by rememberSaveable {
+        mutableStateOf(initial?.ringTimeoutMinutes ?: Alarm.DEFAULT_RING_TIMEOUT_MINUTES)
+    }
+
+    val weekDays = rememberWeekDays()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (initial == null) "Neuer Wecker" else "Wecker bearbeiten") },
+                title = {
+                    Text(
+                        stringResource(
+                            if (initial == null) R.string.title_new_alarm else R.string.title_edit_alarm
+                        )
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                        )
                     }
                 },
                 actions = {
                     if (initial != null) {
                         IconButton(onClick = { onDelete(initial) }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Löschen")
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                            )
                         }
                     }
                 },
@@ -404,28 +505,32 @@ private fun EditorScreen(
             OutlinedTextField(
                 value = label,
                 onValueChange = { label = it },
-                label = { Text("Bezeichnung") },
+                label = { Text(stringResource(R.string.field_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             Column {
-                Text("Wiederholen", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.section_repeat), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
                 // FlowRow statt Row: in einer Row liefen die sieben Chips auf
                 // schmalen Geräten (und bei großer Schrift) rechts aus dem
-                // Bild — Sa/So waren nicht erreichbar.
+                // Bild — die letzten Tage waren nicht erreichbar.
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    dayOrder.forEach { (day, name) ->
+                    weekDays.forEach { day ->
                         FilterChip(
-                            selected = day in repeatDays,
+                            selected = day.calendarDay in repeatDays,
                             onClick = {
-                                repeatDays = if (day in repeatDays) repeatDays - day else repeatDays + day
+                                repeatDays = if (day.calendarDay in repeatDays) {
+                                    repeatDays - day.calendarDay
+                                } else {
+                                    repeatDays + day.calendarDay
+                                }
                             },
-                            label = { Text(name) },
+                            label = { Text(day.label) },
                         )
                     }
                 }
@@ -434,7 +539,10 @@ private fun EditorScreen(
             HorizontalDivider()
 
             Column {
-                Text("Snooze-Dauer", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.section_snooze_duration),
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -444,14 +552,17 @@ private fun EditorScreen(
                         FilterChip(
                             selected = snoozeMinutes == min,
                             onClick = { snoozeMinutes = min },
-                            label = { Text("$min min") },
+                            label = { Text(stringResource(R.string.snooze_minutes_chip, min)) },
                         )
                     }
                 }
             }
 
             Column {
-                Text("Snooze-Anzahl (maximal)", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.section_snooze_count),
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -461,15 +572,45 @@ private fun EditorScreen(
                         FilterChip(
                             selected = maxSnoozes == n,
                             onClick = { maxSnoozes = n },
-                            label = { Text(if (n == 0) "Aus" else "$n×") },
+                            label = {
+                                Text(
+                                    if (n == 0) stringResource(R.string.snooze_off)
+                                    else stringResource(R.string.snooze_times_chip, n)
+                                )
+                            },
                         )
                     }
                 }
             }
 
+            Column {
+                Text(
+                    stringResource(R.string.section_ring_timeout),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Alarm.RING_TIMEOUT_CHOICES.forEach { min ->
+                        FilterChip(
+                            selected = ringTimeoutMinutes == min,
+                            onClick = { ringTimeoutMinutes = min },
+                            label = { Text(stringResource(R.string.snooze_minutes_chip, min)) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.section_ring_timeout_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Text(
-                "Die Uhr vibriert, das Handy zeigt diesen Stopp-Screen. " +
-                    "Ausgeschaltet wird am Handy.",
+                stringResource(R.string.editor_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -485,12 +626,13 @@ private fun EditorScreen(
                             repeatDays = repeatDays,
                             snoozeMinutes = snoozeMinutes,
                             maxSnoozes = maxSnoozes,
+                            ringTimeoutMinutes = ringTimeoutMinutes,
                         )
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {
-                Text("Speichern", fontSize = 16.sp)
+                Text(stringResource(R.string.save), fontSize = 16.sp)
             }
         }
     }

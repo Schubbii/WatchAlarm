@@ -12,14 +12,19 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
   eingeschalteten Zustand ein Vollbild-Screen zum Ausschalten (mit Stopp
   und Schlummern).
 - Stopp auf einem Gerät beendet den Alarm auf beiden.
-- 🛟 Zusätzliches Netz: 5-Minuten-Timeout (danach automatisch Schlummern
-  bzw. Stopp), damit die Uhr nie endlos weitervibriert.
+- 🛟 Zusätzliches Netz: Reagiert niemand, schlummert der Wecker nach einer
+  einstellbaren Zeit von selbst (Standard **30 Minuten**, wählbar in
+  5er-Schritten), damit die Uhr nie endlos weitervibriert.
 
 ## Features
 
 - ⏰ Uhrzeit, Bezeichnung, Wochentags-Wiederholung (auf beiden Geräten
   einstellbar)
-- 😴 Snooze konfigurierbar: Dauer (3–30 min) und maximale Anzahl (0–10×)
+- ⏳ **Schlafdauer** in der Liste: Zeit von jetzt bis zum nächsten Klingeln
+  (z. B. „😴 7 Std. 30 Min. Schlaf“), auf Handy und Uhr, minütlich
+  aktualisiert und inklusive eines laufenden Snooze
+- 😴 Snooze konfigurierbar: Dauer (3–30 min), maximale Anzahl (0–10×) und
+  Klingeldauer bis zum automatischen Schlummern (5–30 min)
 - 🔄 Ständige Synchronisation zwischen Uhr und Handy über die **Wearable
   Data Layer API** — Änderungen von **beiden** Seiten kommen an, geordnet
   über einen geräteunabhängigen Lamport-Versionszähler (kein Wanduhr-
@@ -33,8 +38,13 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
 | `mobile` | Handy-App (Jetpack Compose, Material 3): Alarmliste, Editor (Zeit, Bezeichnung, Wochentage, Snooze), Vollbild-Stopp-Ansicht |
 | `wear`   | Wear-OS-App (Compose for Wear OS): Alarmliste mit Schaltern, einfacher Editor, Vibrations-/Stopp-Ansicht mit Verbindungs-Überwachung |
 
-Beide Apps verwenden dieselbe `applicationId` (`com.watchalarm`) — Voraussetzung
+Beide Apps verwenden dieselbe `applicationId` (`com.Rise.Alarm`) — Voraussetzung
 dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
+
+> **Namensgebung:** Im Store und im Launcher heißt die App **RiseAlarm**.
+> Repository, Gradle-Module und Kotlin-Pakete (`com.watchalarm.*`) tragen
+> weiterhin den Arbeitstitel WatchAlarm — die sieht niemand von außen, und ein
+> Umbenennen brächte nur Bewegung ohne Nutzen.
 
 ## Wie die Synchronisation funktioniert
 
@@ -59,6 +69,22 @@ dafür, dass die Data Layer API Handy- und Uhr-App als Paar erkennt.
 
 Voraussetzungen: Android Studio (Ladybug oder neuer) bzw. Android SDK 35, JDK 17.
 
+> **JDK 17–21, nicht neuer.** Gradle 8.14 (die Wrapper-Version hier) kann die
+> Java-Version „25“ nicht parsen und bricht mit `IllegalArgumentException: 25`
+> schon beim Übersetzen der `.gradle.kts`-Skripte ab. Das sieht im Editor
+> harmlos aus, aber irreführend: Weil der Build gar nicht erst läuft, wird
+> `BuildConfig` nie erzeugt, und die IDE meldet stattdessen ein „unresolved
+> reference: BuildConfig“ mitten im Quelltext. Läuft das System auf einem
+> neueren JDK, zeigt man Gradle ein passendes — benutzerweit in
+> `~/.gradle/gradle.properties`, damit kein maschinenspezifischer Pfad ins
+> Repo wandert:
+>
+> ```properties
+> org.gradle.java.home=C:/Program Files/Java/jdk-21
+> ```
+>
+> Die CI ist nicht betroffen, sie richtet sich JDK 17 selbst ein.
+
 ```bash
 ./gradlew :mobile:assembleDebug   # Handy-APK
 ./gradlew :wear:assembleDebug     # Wear-OS-APK
@@ -75,12 +101,41 @@ adb -s <uhr>   install wear/build/outputs/apk/debug/wear-debug.apk
 > (beim Debug-Build automatisch der Fall), sonst verweigert die Data Layer
 > API die Kommunikation.
 
+### Version erhöhen
+
+Version und Build-Nummer stehen zentral in `gradle.properties`
+(`watchalarm.versionName` / `watchalarm.versionCode`); die Uhr bekommt
+automatisch `versionCode + 1000`. Beide Apps zeigen die Version über
+`BuildConfig.VERSION_NAME` an — nirgends sonst gepflegt.
+
+### Veröffentlichen
+
+Release-Signierung, Play-Console-Ablauf und die nötigen Berechtigungs-
+Deklarationen stehen in **[RELEASING.md](RELEASING.md)**.
+Datenschutzerklärung: **[PRIVACY.md](PRIVACY.md)**.
+
+## Sprachen
+
+Standardsprache ist **Englisch** (`values/strings.xml`), Deutsch liegt als
+Übersetzung daneben (`values-de/strings.xml`). Wochentagskürzel und
+Wochenanfang kommen über `java.time`/`WeekFields` aus der Gerätesprache, die
+Uhrzeit über `DateFormat.getTimeFormat()` aus der 12-/24-Stunden-Einstellung
+des Geräts.
+
 ## Berechtigungen
 
 - `USE_EXACT_ALARM` / `SCHEDULE_EXACT_ALARM` — exakte Weckzeiten
 - `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT` — Vollbild-Klingelansicht
-- `FOREGROUND_SERVICE(_SYSTEM_EXEMPTED)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
+- `FOREGROUND_SERVICE(_SPECIAL_USE)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
 - `RECEIVE_BOOT_COMPLETED` — Alarme nach Neustart wiederherstellen
+
+> **Warum `specialUse` und nicht `systemExempted`:** Letzteres ist Apps
+> vorbehalten, die ohnehin von den Hintergrund-Einschränkungen ausgenommen
+> sind (Geräteverwaltung, VPN, Notfall-Apps). `USE_EXACT_ALARM` erlaubt uns
+> den Start aus dem Hintergrund, macht die App aber nicht „system exempted“ —
+> der Typ kann beim `startForeground()` also abgelehnt werden. `specialUse`
+> ist der dokumentierte Auffangtyp; die Begründung für Play steht als
+> `<property>` direkt im Manifest.
 
 > Ab Android 14 ist `USE_FULL_SCREEN_INTENT` eine widerrufbare Berechtigung.
 > Fehlt sie, zeigt die Handy-App oben in der Liste einen Hinweis, der direkt

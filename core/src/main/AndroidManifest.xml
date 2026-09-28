@@ -5,7 +5,18 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <!--
+        specialUse statt systemExempted: Letzteres ist laut Doku den Apps
+        vorbehalten, die ohnehin von den Hintergrund-Einschränkungen
+        ausgenommen sind (Geräteverwaltung, VPN, Notfall-Apps …). Eine
+        Wecker-App gehört nicht dazu — USE_EXACT_ALARM erlaubt den Start aus
+        dem Hintergrund, macht uns aber nicht "system exempted". Der Typ kann
+        deshalb beim startForeground() abgelehnt werden. specialUse ist der
+        dokumentierte Auffangtyp für Fälle, die keiner der festen Kategorien
+        entsprechen; die Berechtigung wird bei der Installation erteilt und
+        hängt an keiner Ausnahmeliste.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission
@@ -18,7 +29,11 @@
         <service
             android:name=".AlarmService"
             android:exported="false"
-            android:foregroundServiceType="systemExempted" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Klingelnder Wecker: Vibration, WakeLock und Stopp-Screen müssen laufen, bis der Nutzer den Alarm beendet." />
+        </service>
 
         <service
             android:name=".SyncListenerService"

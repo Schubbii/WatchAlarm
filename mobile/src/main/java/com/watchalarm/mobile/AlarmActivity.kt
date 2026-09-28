@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -148,10 +149,12 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun sendServiceAction(action: String) {
+        val intent = Intent(this, AlarmService::class.java).setAction(action)
+        // Gemeinten Alarm mitgeben: Der Service darf sich nicht darauf
+        // verlassen, dass sein In-Memory-Zustand noch auf ihn zeigt.
+        alarmState.value?.let { intent.putExtra(SyncContract.EXTRA_ALARM_ID, it.id) }
         // Activity ist im Vordergrund, der Service läuft bereits als FGS.
-        runCatching {
-            startService(Intent(this, AlarmService::class.java).setAction(action))
-        }
+        runCatching { startService(intent) }
     }
 
     @androidx.compose.runtime.Composable
@@ -193,7 +196,7 @@ class AlarmActivity : ComponentActivity() {
                     contentColor = MaterialTheme.colorScheme.onError,
                 ),
             ) {
-                Text("Stopp", fontSize = 20.sp)
+                Text(stringResource(R.string.stop), fontSize = 20.sp)
             }
 
             if (snoozeAvailable) {
@@ -202,7 +205,10 @@ class AlarmActivity : ComponentActivity() {
                     onClick = { sendServiceAction(AlarmService.ACTION_SNOOZE) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 ) {
-                    Text("Schlummern (${alarm.snoozeMinutes} min)", fontSize = 18.sp)
+                    Text(
+                        stringResource(R.string.snooze_with_duration, alarm.snoozeMinutes),
+                        fontSize = 18.sp,
+                    )
                 }
             }
         }

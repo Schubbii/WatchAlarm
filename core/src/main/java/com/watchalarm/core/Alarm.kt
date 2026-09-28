@@ -13,9 +13,14 @@ import java.util.UUID
  * [repeatDays] enthält [java.util.Calendar]-Wochentagskonstanten
  * (SUNDAY=1 .. SATURDAY=7). Leer = einmaliger Alarm.
  *
- * Klingelverhalten ist bewusst fest verdrahtet: Die Uhr vibriert, das Handy
- * zeigt (lautlos) den Stopp-Screen. Ausgeschaltet wird am Handy; die Uhr
- * bietet einen Notfall-Stopp nur, wenn das Handy nicht verbunden ist.
+ * Das *Signal* ist fest verdrahtet: Die Uhr vibriert, das Handy zeigt
+ * (lautlos) den Stopp-Screen; Ton und Lautstärke sind nicht einstellbar. Die
+ * Fristen dagegen schon, pro Wecker — [snoozeMinutes], [maxSnoozes] und
+ * [ringTimeoutMinutes].
+ *
+ * Beendet wird auf beiden Geräten, und das Gerät sagt dem anderen per Message
+ * Bescheid. Schlummern bietet dagegen nur das Handy: Auf der Uhr trägt weder
+ * der Klingel-Screen noch die Benachrichtigung einen Schlummer-Button.
  */
 data class Alarm(
     val id: String = UUID.randomUUID().toString(),
@@ -26,6 +31,12 @@ data class Alarm(
     val repeatDays: Set<Int> = emptySet(),
     val snoozeMinutes: Int = 5,
     val maxSnoozes: Int = 3,
+    /**
+     * Klingeldauer ohne Reaktion, danach wird automatisch geschlummert.
+     * Sicherheitsnetz, damit die Uhr nicht endlos weitervibriert, wenn sie
+     * gar nicht am Handgelenk ist.
+     */
+    val ringTimeoutMinutes: Int = DEFAULT_RING_TIMEOUT_MINUTES,
 ) {
 
     val repeating: Boolean get() = repeatDays.isNotEmpty()
@@ -69,9 +80,20 @@ data class Alarm(
         put("repeatDays", JSONArray(repeatDays.toList()))
         put("snoozeMinutes", snoozeMinutes)
         put("maxSnoozes", maxSnoozes)
+        put("ringTimeoutMinutes", ringTimeoutMinutes)
     }
 
     companion object {
+
+        /**
+         * 30 Minuten. Vorher waren es 5 — das war als Akkuschutz gedacht,
+         * hat den Wecker aber mitten in der Nacht leise gemacht, während
+         * man noch schlief.
+         */
+        const val DEFAULT_RING_TIMEOUT_MINUTES = 30
+
+        /** Auswahl im Editor: 5er-Schritte. */
+        val RING_TIMEOUT_CHOICES = listOf(5, 10, 15, 20, 25, 30)
 
         fun fromJson(o: JSONObject): Alarm {
             val days = mutableSetOf<Int>()
@@ -87,17 +109,72 @@ data class Alarm(
                 repeatDays = days,
                 snoozeMinutes = o.optInt("snoozeMinutes", 5),
                 maxSnoozes = o.optInt("maxSnoozes", 3),
+                // Ältere Stände kennen das Feld nicht -> neuer Standardwert.
+                ringTimeoutMinutes = o.optInt(
+                    "ringTimeoutMinutes",
+                    DEFAULT_RING_TIMEOUT_MINUTES
+                ),
             )
         }
 
         fun listToJson(alarms: List<Alarm>): String =
             JSONArray().apply { alarms.forEach { put(it.toJson()) } }.toString()
 
-        fun listFromJson(json: String): List<Alarm> = try {
+        /**
+         * ASCII Unit Separator (0x1F) als Feldtrenner in [listSignature].
+         * Bewusst als [Char]-Code statt als Escape-Sequenz im String-Literal,
+         * damit kein Steuerzeichen im Quelltext steht.
+         */
+        private val FIELD_SEPARATOR = Char(31).toString()
+
+        /**
+         * Reihenfolge-unabhängige Signatur einer Liste: inhaltlich gleiche
+         * Bestände ergeben dieselbe Zeichenkette.
+         *
+         * Der JSON-Text taugt dafür nicht — die UI hängt einen bearbeiteten
+         * Alarm hinten an (`filter { … } + alarm`), und [repeatDays] ist ein
+         * Set, dessen Iterationsreihenfolge von der Einfügereihenfolge
+         * abhängt. Zwei Geräte könnten also denselben Bestand haben und
+         * trotzdem unterschiedliches JSON erzeugen. Deshalb hier alles
+         * sortiert und mit einem Trennzeichen, das in Labels nicht vorkommt.
+         *
+         * **Jedes synchronisierte Feld muss hier auftauchen.** Fehlt eines,
+         * halten zwei inhaltlich verschiedene Stände einander für gleich, und
+         * [AlarmStore.applyRemote] verwirft die Änderung schon im
+         * Gleichheits-Abbruch — noch bevor die Version betrachtet wird. Genau
+         * das war [ringTimeoutMinutes] passiert: eingeführt und in [toJson]
+         * aufgenommen, hier aber vergessen, sodass eine geänderte Klingeldauer
+         * das andere Gerät nie erreichte.
+         */
+        fun listSignature(alarms: List<Alarm>): String =
+            alarms.sortedBy { it.id }.joinToString("\n") { a ->
+                listOf(
+                    a.id, a.hour, a.minute, a.label, a.enabled,
+                    a.repeatDays.sorted().joinToString(","),
+                    a.snoozeMinutes, a.maxSnoozes, a.ringTimeoutMinutes,
+                ).joinToString(FIELD_SEPARATOR)
+            }
+
+        /**
+         * Liste einlesen — `null`, wenn der Text kein brauchbares JSON ist.
+         *
+         * Der Rückgabetyp ist bewusst nullable: Vorher lieferte ein
+         * Parse-Fehler `emptyList()`, und damit war „kaputt" von „der Nutzer
+         * hat den letzten Alarm gelöscht" nicht mehr zu unterscheiden. Ein
+         * beschädigtes DataItem mit höherer Version sah für den Empfänger
+         * deshalb aus wie eine gültige Löschung aller Alarme: Er übernahm die
+         * leere Liste als neuen Stand, meldete alle Alarme beim AlarmManager
+         * ab und schickte sie der Gegenseite zurück. Ein einziges kaputtes
+         * Paket löschte so den Bestand auf beiden Geräten.
+         *
+         * Eine leere, aber gültige Liste (`[]`) kommt weiter als `emptyList()`
+         * durch — das Löschen aller Alarme muss sich ja synchronisieren.
+         */
+        fun listFromJson(json: String): List<Alarm>? = try {
             val arr = JSONArray(json)
             (0 until arr.length()).map { fromJson(arr.getJSONObject(it)) }
         } catch (e: Exception) {
-            emptyList()
+            null
         }
     }
 }

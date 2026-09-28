@@ -10,20 +10,57 @@ import android.content.SharedPreferences
 object RuntimeStore {
 
     private const val PREFS = "watchalarm_runtime"
-    private const val KEY_RINGING = "ringing_alarm_id"
+    private const val KEY_RINGING_IDS = "ringing_alarm_ids"
+
+    /**
+     * Vorgänger von [KEY_RINGING_IDS]: ein einzelner String. Wird nur noch
+     * aufgeräumt — gelesen wird er nicht mehr, sonst müsste jeder Zugriff mit
+     * einer ClassCastException rechnen.
+     */
+    private const val KEY_RINGING_LEGACY = "ringing_alarm_id"
+
     private const val KEY_SNOOZE_PREFIX = "snoozes_"
     private const val KEY_SNOOZE_UNTIL_PREFIX = "snooze_until_"
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun getRingingAlarmId(context: Context): String? =
-        prefs(context).getString(KEY_RINGING, null)
+    /**
+     * Alle gerade klingelnden Alarme.
+     *
+     * Eine Menge und kein einzelner Wert, weil [AlarmService] sie auch so
+     * hält: Zwei Alarme auf dieselbe Minute klingeln gemeinsam. Vorher stand
+     * hier nur der zuletzt gestartete, und weil [AlarmService.dismiss] und
+     * [AlarmService.snooze] an diesem Wert erkennen, ob der gemeinte Alarm
+     * überhaupt klingelt, lief ein von der Gegenseite abgeschalteter *erster*
+     * Alarm hier einfach weiter — und wurde beim spätereren Stopp ein zweites
+     * Mal abgeschlossen.
+     */
+    fun getRingingAlarmIds(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_RINGING_IDS, emptySet()) ?: emptySet()
 
-    fun setRingingAlarmId(context: Context, id: String?) {
+    fun addRingingAlarmId(context: Context, id: String) {
+        // Die Menge aus getStringSet() darf laut Doku nicht verändert werden;
+        // "+" legt ohnehin eine neue an.
+        prefs(context).edit()
+            .putStringSet(KEY_RINGING_IDS, getRingingAlarmIds(context) + id)
+            .apply()
+    }
+
+    /** Einzelne Alarme abmelden, ohne die der anderen zu verlieren. */
+    fun removeRingingAlarmIds(context: Context, ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val rest = getRingingAlarmIds(context) - ids
         prefs(context).edit().apply {
-            if (id == null) remove(KEY_RINGING) else putString(KEY_RINGING, id)
+            if (rest.isEmpty()) remove(KEY_RINGING_IDS) else putStringSet(KEY_RINGING_IDS, rest)
         }.apply()
+    }
+
+    fun clearRingingAlarmIds(context: Context) {
+        prefs(context).edit()
+            .remove(KEY_RINGING_IDS)
+            .remove(KEY_RINGING_LEGACY)
+            .apply()
     }
 
     fun getSnoozeCount(context: Context, alarmId: String): Int =

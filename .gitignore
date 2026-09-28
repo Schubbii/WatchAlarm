@@ -9,5 +9,13 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Logcat-Mitschnitte vom Testen (phone.log, watch.log …).
+*.log
 *.keystore
 !debug.keystore
+
+# Release-Signierung — niemals einchecken.
+*.jks
+keystore.properties
+play-service-account.json
