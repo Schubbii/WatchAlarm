@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4355B9"/>
+      <stop offset="1" stop-color="#2B3A8F"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <!-- Wecker links, gleiche Silhouette wie das App-Icon (24er-Raster, x12 = 288px). -->
+  <g transform="translate(96,106) scale(12)" fill="#FFFFFF" opacity="0.97">
+    <path d="M22,5.72l-4.6,-3.86 -1.29,1.53 4.6,3.86L22,5.72zM7.88,3.39L6.6,1.86 2,5.71l1.29,1.53 4.59,-3.85zM12.5,8L11,8v6l4.75,2.85 0.75,-1.23 -4,-2.37L12.5,8zM12,4c-4.97,0 -9,4.03 -9,9s4.02,9 9,9c4.97,0 9,-4.03 9,-9s-4.03,-9 -9,-9zM12,20c-3.87,0 -7,-3.13 -7,-7s3.13,-7 7,-7 7,3.13 7,7 -3.13,7 -7,7z"/>
+  </g>
+  <!-- Rechts Name und Nutzenversprechen. Play beschneidet die Grafik auf
+       manchen Flaechen an den Raendern, deshalb alles gut innerhalb. -->
+  <text x="452" y="236" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="86" font-weight="600" fill="#FFFFFF">RiseAlarm</text>
+  <text x="452" y="300" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="34" font-weight="400" fill="#D8DDF7">The watch wakes you.</text>
+  <text x="452" y="346" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="34" font-weight="400" fill="#D8DDF7">The phone turns it off.</text>
+</svg>
