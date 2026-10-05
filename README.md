@@ -90,12 +90,22 @@ Voraussetzungen: Android Studio (Ladybug oder neuer) bzw. Android SDK 35, JDK 17
 ./gradlew :wear:assembleDebug     # Wear-OS-APK
 ```
 
-Installation zum Testen:
+Installation zum Testen — **Release-Build nehmen, nicht Debug.** Debug-Builds
+sind `debuggable`, werden von ART nicht optimiert und ruckeln auf der Uhr
+deutlich. Ohne Keystore signiert der Release-Build mit dem Debug-Key und ist
+damit direkt installierbar:
 
 ```bash
-adb -s <handy> install mobile/build/outputs/apk/debug/mobile-debug.apk
-adb -s <uhr>   install wear/build/outputs/apk/debug/wear-debug.apk
+./gradlew :mobile:assembleRelease :wear:assembleRelease
+adb -s <handy> install -r mobile/build/outputs/apk/release/mobile-release.apk
+adb -s <uhr>   install -r wear/build/outputs/apk/release/wear-release.apk
 ```
+
+Fertig gebaut liegen beide auch an jedem CI-Lauf als Artefakt
+**`apks-zum-installieren`**. Die CI signiert mit einem pro Lauf neuen
+Schlüssel: Handy- und Uhr-APK aus demselben Lauf nehmen, und beim Wechsel
+von einem anderen Build vorher auf beiden Geräten deinstallieren
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
 > **Wichtig:** Beide APKs müssen mit **demselben Schlüssel signiert** sein
 > (beim Debug-Build automatisch der Fall), sonst verweigert die Data Layer
