@@ -59,7 +59,7 @@ Beide AABs gehören in **denselben Release** derselben Play-App.
 
 ## Play Console: was ausgefüllt werden muss
 
-Diese App nutzt drei Berechtigungen, die eine ausdrückliche Erklärung
+Diese App nutzt vier Berechtigungen, die eine ausdrückliche Erklärung
 brauchen. Ohne sie wird die Veröffentlichung abgelehnt:
 
 | Thema | Wo | Begründung |
@@ -67,6 +67,7 @@ brauchen. Ohne sie wird die Veröffentlichung abgelehnt:
 | **Vollbild-Benachrichtigung** (`USE_FULL_SCREEN_INTENT`) | App-Inhalte → Deklaration | Nur Wecker- und Anruf-Apps erhalten sie. RiseAlarm ist ein Wecker: Der Vollbild-Screen ist der einzige Weg, den Alarm bei gesperrtem Bildschirm zu beenden. |
 | **Exakte Alarme** (`USE_EXACT_ALARM`) | App-Inhalte → Deklaration | Ein Wecker muss auf die Minute genau auslösen; ungenaue Alarme wären zweckwidrig. |
 | **Foreground-Service-Typ** (`specialUse`) | App-Inhalte → Deklaration | Meist mit kurzem Demo-Video. Als Begründung dieselbe Formulierung wie im Manifest (`PROPERTY_SPECIAL_USE_FGS_SUBTYPE` in `core/src/main/AndroidManifest.xml`): Der Service muss laufen, bis der Nutzer den Alarm beendet. |
+| **Health Connect: Schlaf lesen** (`android.permission.health.READ_SLEEP`, nur Handy) | App-Inhalte → Health-Apps / Health Connect-Berechtigungen | Schlafplaner: Schlafdauer der letzten 7 Nächte für Durchschnitt, Schlafdefizit und die Empfehlung 5 bzw. 6 Zyklen. Nur Lesen, nur Schlafsitzungen. Die Begründungsseite verlangt Health Connect selbst (`PermissionsRationaleActivity`), sie verweist auf dieselbe Datenschutzerklärung. |
 
 Dazu:
 
@@ -77,6 +78,9 @@ Dazu:
   und darf sich danach nicht mehr ändern.
 - **Data Safety** — die App sammelt und überträgt nichts an Dritte; die
   Synchronisation läuft ausschließlich Gerät↔Gerät über die Data Layer API.
+  Seit dem Schlafplaner liest das Handy **Gesundheits- und Fitnessdaten
+  (Schlaf)**: „wird verarbeitet, nicht geteilt", nur auf dem Gerät, optional
+  (der Planer funktioniert ohne).
 - **Wear-OS-Store-Eintrag** — eigene Screenshots von der Uhr, sonst erscheint
   die App nicht im Play Store auf dem Handgelenk.
 

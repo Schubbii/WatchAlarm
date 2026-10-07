@@ -50,6 +50,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
@@ -69,15 +70,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.R as CoreR
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
@@ -87,6 +92,7 @@ import java.time.temporal.WeekFields
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -128,6 +134,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Schlafdaten aktuell halten, auch für die Uhr. Ohne Berechtigung
+        // tut das nichts außer alte Werte zu löschen.
+        lifecycleScope.launch { SleepHealth.refresh(this@MainActivity) }
         fullScreenIntentBlocked.value = Build.VERSION.SDK_INT >= 34 &&
             getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == false
     }
@@ -144,6 +153,7 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
     // und so überlebt der geöffnete Editor eine Drehung / Prozess-Neustart.
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
+    var showPlanner by rememberSaveable { mutableStateOf(false) }
 
     // Liste/Klingelstatus aktualisieren, wenn sich der Speicher ändert
     // (auch bei Sync von der Uhr).
@@ -164,7 +174,9 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
         }
     }
 
-    if (showEditor) {
+    if (showPlanner) {
+        SleepPlannerScreen(onBack = { showPlanner = false })
+    } else if (showEditor) {
         EditorScreen(
             initial = editingId?.let { id -> alarms.firstOrNull { it.id == id } },
             onSave = { alarm ->
@@ -189,6 +201,7 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
                 )
             },
             onAdd = { editingId = null; showEditor = true },
+            onOpenPlanner = { showPlanner = true },
             onEdit = { editingId = it.id; showEditor = true },
             onToggle = { alarm, enabled ->
                 AlarmStore.applyLocalChange(context) { list ->
@@ -210,7 +223,7 @@ private fun AppRoot(fullScreenIntentBlocked: Boolean) {
  * im Hintergrund sieht ohnehin niemand die Liste.
  */
 @Composable
-private fun rememberCurrentMinute(): Long {
+internal fun rememberCurrentMinute(): Long {
     val lifecycleOwner = LocalLifecycleOwner.current
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(lifecycleOwner) {
@@ -275,13 +288,30 @@ private fun ListScreen(
     fullScreenIntentBlocked: Boolean,
     onOpenRinging: (String) -> Unit,
     onAdd: () -> Unit,
+    onOpenPlanner: () -> Unit,
     onEdit: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val now = rememberCurrentMinute()
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    // Der Plus-Knopf bleibt dem neuen Wecker vorbehalten; der
+                    // Planer sitzt als Aktion in der Leiste — mit demselben
+                    // Mond wie auf der Uhr.
+                    val plannerDescription = stringResource(CoreR.string.core_planner_title)
+                    TextButton(
+                        onClick = onOpenPlanner,
+                        modifier = Modifier.semantics { contentDescription = plannerDescription },
+                    ) {
+                        Text(stringResource(R.string.planner_open), fontSize = 16.sp)
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAdd) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_alarm))

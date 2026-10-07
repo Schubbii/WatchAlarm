@@ -25,6 +25,15 @@ aber **am Handy** — perfekt gegen das verschlafene Wegdrücken am Handgelenk.
   aktualisiert und inklusive eines laufenden Snooze
 - 😴 Snooze konfigurierbar: Dauer (3–30 min), maximale Anzahl (0–10×) und
   Klingeldauer bis zum automatischen Schlummern (5–30 min)
+- 🌙 **Schlafplaner** (Handy und Uhr): schlägt Schlafens- bzw. Weckzeiten
+  am Ende eines vollen Schlafzyklus vor („Jetzt schlafen" / „Aufwachen
+  um …", Zykluslänge 90 min und Einschlafzeit 15 min einstellbar). Ein Tipp
+  auf eine Weckzeit stellt einen normalen Wecker, ein Tipp auf eine
+  Schlafenszeit eine Erinnerung. Mit Freigabe für **Health Connect** (am
+  Handy) zeigt er Ø-Schlaf und Schlafdefizit der letzten 7 Nächte und
+  hebt 5 bzw. bei > 3 h Defizit 6 Zyklen als „Empfohlen" hervor; die Uhr
+  bekommt dafür nur die Schlafdauer je Nacht. Rechnung und Statistik liegen
+  testbar in `core` (`SleepPlanner`, `SleepStats`).
 - 🔄 Ständige Synchronisation zwischen Uhr und Handy über die **Wearable
   Data Layer API** — Änderungen von **beiden** Seiten kommen an, geordnet
   über einen geräteunabhängigen Lamport-Versionszähler (kein Wanduhr-
@@ -128,6 +137,8 @@ des Geräts.
 - `POST_NOTIFICATIONS`, `USE_FULL_SCREEN_INTENT` — Vollbild-Klingelansicht
 - `FOREGROUND_SERVICE(_SPECIAL_USE)`, `WAKE_LOCK`, `VIBRATE` — Klingeln
 - `RECEIVE_BOOT_COMPLETED` — Alarme nach Neustart wiederherstellen
+- `health.READ_SLEEP` (nur Handy, optional) — Schlafdauer der letzten Nächte
+  für den Schlafplaner
 
 > **Warum `specialUse` und nicht `systemExempted`:** Letzteres ist Apps
 > vorbehalten, die ohnehin von den Hintergrund-Einschränkungen ausgenommen

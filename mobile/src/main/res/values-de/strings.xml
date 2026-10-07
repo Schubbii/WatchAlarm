@@ -30,4 +30,21 @@
     <!-- Klingel-Screen -->
     <string name="stop">Stopp</string>
     <string name="snooze_with_duration">Schlummern (%1$d min)</string>
+    <!-- Schlafplaner -->
+    <string name="planner_wake_time_button">Aufwachen um %1$s</string>
+    <string name="health_title">Schlafdaten nutzen</string>
+    <string name="health_explanation">RiseAlarm kann deinen Schlaf der letzten 7 Nächte aus Health Connect lesen. Verwendet wird nur die Schlafdauer pro Nacht – für Durchschnitt, Schlafdefizit und die Empfehlung, wie viele Zyklen du brauchst. Diese Werte bleiben auf deinem Handy und deiner Uhr.</string>
+    <string name="health_rationale_title">Deine Schlafdaten</string>
+    <string name="health_rationale_details">Gelesen werden nur Schlafsitzungen – keine anderen Gesundheitsdaten. RiseAlarm schreibt nichts in Health Connect und sendet nichts an den Entwickler oder Dritte. Du kannst den Zugriff jederzeit in Health Connect widerrufen; der Planer funktioniert dann ohne Empfehlung weiter.</string>
+    <string name="health_privacy_policy">Datenschutzerklärung</string>
+    <string name="health_connect">Verbinden</string>
+    <string name="health_not_now">Nicht jetzt</string>
+    <string name="health_install">Installieren</string>
+    <string name="health_manage">Verwalten</string>
+    <string name="health_section">Schlafdaten</string>
+    <string name="health_status_connected">Mit Health Connect verbunden</string>
+    <string name="health_status_not_connected">Nicht verbunden</string>
+    <string name="health_status_not_installed">Health Connect ist nicht installiert</string>
+    <string name="health_status_unavailable">Health Connect ist auf diesem Gerät nicht verfügbar</string>
+    <string name="health_status_checking">Wird geprüft…</string>
 </resources>

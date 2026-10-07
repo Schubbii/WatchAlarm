@@ -108,4 +108,6 @@ dependencies {
     // LocalLifecycleOwner für Compose; die gleichnamige API in
     // compose.ui ist ab 1.7 veraltet.
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    // Schlafplaner: Schlafsitzungen der letzten Nächte (nur Lesen).
+    implementation("androidx.health.connect:connect-client:1.1.0")
 }
