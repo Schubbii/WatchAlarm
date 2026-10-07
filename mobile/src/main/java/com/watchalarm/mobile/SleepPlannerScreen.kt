@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.HealthConnectClient
@@ -333,8 +334,8 @@ private fun SuggestionCard(suggestion: SleepSuggestion, recommended: Boolean, on
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 SleepPlannerFormat.time(context, suggestion.time),
-                fontSize = 40.sp,
-                fontFamily = RiseSerif,
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Light,
                 color = if (suggestion.available) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -22,6 +22,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,8 @@ class PermissionsRationaleActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            RiseTheme {
+            val dark = androidx.compose.foundation.isSystemInDarkTheme()
+            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
                 Scaffold(
                     topBar = {
                         TopAppBar(

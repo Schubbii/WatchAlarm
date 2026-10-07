@@ -52,6 +52,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -68,6 +70,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -118,7 +121,8 @@ class MainActivity : ComponentActivity() {
         AlarmSync.syncNow(this)
 
         setContent {
-            RiseTheme {
+            val dark = androidx.compose.foundation.isSystemInDarkTheme()
+            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppRoot(fullScreenIntentBlocked.value)
                 }
@@ -416,8 +420,8 @@ private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (B
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     alarm.formattedTime(context),
-                    fontSize = 40.sp,
-                    fontFamily = RiseSerif,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Light,
                     color = if (alarm.enabled) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
