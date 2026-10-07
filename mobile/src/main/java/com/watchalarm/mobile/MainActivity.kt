@@ -14,6 +14,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,42 +24,49 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
@@ -66,10 +74,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -81,6 +91,7 @@ import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
+import java.text.DateFormatSymbols
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
@@ -117,9 +128,8 @@ class MainActivity : ComponentActivity() {
         AlarmSync.syncNow(this)
 
         setContent {
-            val dark = androidx.compose.foundation.isSystemInDarkTheme()
-            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            RiseTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = Rise.colors.surface) {
                     AppRoot(fullScreenIntentBlocked.value)
                 }
             }
@@ -279,11 +289,28 @@ private fun ListScreen(
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val colors = Rise.colors
     val now = rememberCurrentMinute()
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        containerColor = colors.surface,
+        topBar = {
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineLarge,
+                fontSize = 34.sp,
+                color = colors.ink,
+                modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp),
+            )
+        },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAdd) {
+            FloatingActionButton(
+                onClick = onAdd,
+                shape = CircleShape,
+                containerColor = colors.btnBg,
+                contentColor = colors.btnFg,
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_alarm))
             }
         },
@@ -294,17 +321,18 @@ private fun ListScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                            .padding(start = 20.dp, end = 20.dp, top = 16.dp)
                             .clickable { onOpenRinging(ringingId) },
+                        shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            containerColor = colors.btnBg,
+                            contentColor = colors.btnFg,
                         ),
                     ) {
                         Text(
                             stringResource(R.string.alarm_active_tap),
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(18.dp),
                         )
                     }
                 }
@@ -312,7 +340,7 @@ private fun ListScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                            .padding(start = 20.dp, end = 20.dp, top = 16.dp)
                             .clickable {
                                 runCatching {
                                     context.startActivity(
@@ -323,15 +351,16 @@ private fun ListScreen(
                                     )
                                 }
                             },
+                        shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            containerColor = colors.chip,
+                            contentColor = colors.ink2,
                         ),
                     ) {
                         Text(
                             stringResource(R.string.full_screen_intent_warning),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(18.dp),
                         )
                     }
                 }
@@ -340,7 +369,8 @@ private fun ListScreen(
                         Text(
                             stringResource(R.string.empty_list),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = colors.ink2,
+                            textAlign = TextAlign.Center,
                         )
                     }
                 } else {
@@ -348,7 +378,7 @@ private fun ListScreen(
                         modifier = Modifier.fillMaxSize(),
                         // Unten extra Platz, sonst verdeckt der FAB den
                         // letzten Wecker (und dessen Schalter).
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(alarms, key = { it.id }) { alarm ->
@@ -365,7 +395,7 @@ private fun ListScreen(
             Text(
                 stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.ink3,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
             )
         }
@@ -382,9 +412,12 @@ private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (B
     val sleepDuration = remember(alarm, now) {
         if (alarm.enabled) SleepDuration.formatUntil(context, alarm, now) else null
     }
+    val colors = Rise.colors
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.card, contentColor = colors.ink),
+        border = BorderStroke(1.dp, colors.lineA),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
@@ -393,10 +426,10 @@ private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (B
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     alarm.formattedTime(context),
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Light,
-                    color = if (alarm.enabled) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = SerifNumerals,
+                    fontSize = 40.sp,
+                    lineHeight = 42.sp,
+                    color = if (alarm.enabled) colors.ink else colors.ink3,
                 )
                 val subtitle = buildString {
                     if (alarm.label.isNotBlank()) append(alarm.label)
@@ -406,19 +439,36 @@ private fun AlarmCard(alarm: Alarm, now: Long, onClick: () -> Unit, onToggle: (B
                     }
                 }
                 if (subtitle.isNotBlank()) {
-                    Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.ink2)
                 }
                 if (sleepDuration != null) {
                     Text(
                         stringResource(R.string.sleep_duration, sleepDuration),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = colors.accent,
                     )
                 }
             }
-            Switch(checked = alarm.enabled, onCheckedChange = onToggle)
+            Switch(
+                checked = alarm.enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.card,
+                    checkedTrackColor = colors.accent,
+                    checkedBorderColor = colors.accent,
+                    uncheckedThumbColor = colors.ink3,
+                    uncheckedTrackColor = colors.track,
+                    uncheckedBorderColor = colors.lineB,
+                ),
+            )
         }
     }
+}
+
+/** Abschnittstitel im Stil des Entwurfs: klein, gesperrt, Versalien, Akzentfarbe. */
+@Composable
+private fun Eyebrow(text: String) {
+    Text(text.uppercase(Locale.getDefault()), style = EyebrowStyle, color = Rise.colors.accent)
 }
 
 /** Set<Int> ist nicht bundle-fähig, deshalb über eine Liste sichern. */
@@ -440,13 +490,14 @@ private fun EditorScreen(
     val context = LocalContext.current
     BackHandler(onBack = onBack)
 
-    val timeState = rememberTimePickerState(
-        initialHour = initial?.hour ?: 7,
-        initialMinute = initial?.minute ?: 0,
-        is24Hour = android.text.format.DateFormat.is24HourFormat(context),
-    )
+    val colors = Rise.colors
+    // Das Uhrzeitformat des Geräts übernehmen, wie vorher der Material-Picker:
+    // 12-Stunden-Geräte bekommen eine dritte Spalte für AM/PM.
+    val is24Hour = remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
     // rememberSaveable statt remember: sonst sind alle Eingaben nach einer
     // Drehung (oder auf einem Foldable beim Auf-/Zuklappen) wieder weg.
+    var hour by rememberSaveable { mutableIntStateOf(initial?.hour ?: 7) }
+    var minute by rememberSaveable { mutableIntStateOf(initial?.minute ?: 0) }
     var label by rememberSaveable { mutableStateOf(initial?.label ?: "") }
     var repeatDays by rememberSaveable(stateSaver = intSetSaver) {
         mutableStateOf(initial?.repeatDays ?: emptySet())
@@ -459,14 +510,39 @@ private fun EditorScreen(
 
     val weekDays = rememberWeekDays()
 
+    val chipColors = FilterChipDefaults.filterChipColors(
+        containerColor = colors.chip,
+        labelColor = colors.ink2,
+        selectedContainerColor = colors.btnBg,
+        selectedLabelColor = colors.btnFg,
+    )
+
+    @Composable
+    fun chipBorder(selected: Boolean) = FilterChipDefaults.filterChipBorder(
+        enabled = true,
+        selected = selected,
+        borderColor = Color.Transparent,
+        selectedBorderColor = Color.Transparent,
+    )
+
     Scaffold(
+        containerColor = colors.surface,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.surface,
+                    scrolledContainerColor = colors.surface,
+                    titleContentColor = colors.ink,
+                    navigationIconContentColor = colors.ink,
+                    actionIconContentColor = colors.ink2,
+                ),
                 title = {
                     Text(
                         stringResource(
                             if (initial == null) R.string.title_new_alarm else R.string.title_edit_alarm
-                        )
+                        ),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontSize = 30.sp,
                     )
                 },
                 navigationIcon = {
@@ -495,11 +571,47 @@ private fun EditorScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TimePicker(state = timeState)
+            DrumFrame {
+                val amPmLabels = remember { DateFormatSymbols.getInstance().amPmStrings }
+                DrumColumn(
+                    count = if (is24Hour) 24 else 12,
+                    initial = if (is24Hour) hour else hour % 12,
+                    onSelected = { selected ->
+                        hour = if (is24Hour) selected else selected + if (hour >= 12) 12 else 0
+                    },
+                    contentDescription = stringResource(R.string.picker_hour),
+                    label = { index ->
+                        if (is24Hour) "%02d".format(index)
+                        else if (index == 0) "12" else "$index"
+                    },
+                )
+                Text(
+                    ":",
+                    fontFamily = InstrumentSerif,
+                    fontSize = with(LocalDensity.current) { 34.dp.toSp() },
+                    color = colors.accent,
+                )
+                DrumColumn(
+                    count = 60,
+                    initial = minute,
+                    onSelected = { minute = it },
+                    contentDescription = stringResource(R.string.picker_minute),
+                    label = { "%02d".format(it) },
+                )
+                if (!is24Hour) {
+                    DrumColumn(
+                        count = 2,
+                        initial = if (hour >= 12) 1 else 0,
+                        onSelected = { pm -> hour = hour % 12 + if (pm == 1) 12 else 0 },
+                        contentDescription = stringResource(R.string.picker_am_pm),
+                        label = { amPmLabels.getOrElse(it) { if (it == 0) "AM" else "PM" } },
+                        wrap = false,
+                        weight = 0.9f,
+                    )
+                }
             }
 
             OutlinedTextField(
@@ -507,11 +619,23 @@ private fun EditorScreen(
                 onValueChange = { label = it },
                 label = { Text(stringResource(R.string.field_label)) },
                 singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = colors.card,
+                    unfocusedContainerColor = colors.card,
+                    focusedBorderColor = colors.accent,
+                    unfocusedBorderColor = colors.lineB,
+                    focusedLabelColor = colors.accent,
+                    unfocusedLabelColor = colors.ink3,
+                    cursorColor = colors.accent,
+                    focusedTextColor = colors.ink,
+                    unfocusedTextColor = colors.ink,
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             Column {
-                Text(stringResource(R.string.section_repeat), style = MaterialTheme.typography.titleSmall)
+                Eyebrow(stringResource(R.string.section_repeat))
                 Spacer(Modifier.height(8.dp))
                 // FlowRow statt Row: in einer Row liefen die sieben Chips auf
                 // schmalen Geräten (und bei großer Schrift) rechts aus dem
@@ -523,6 +647,9 @@ private fun EditorScreen(
                     weekDays.forEach { day ->
                         FilterChip(
                             selected = day.calendarDay in repeatDays,
+                            colors = chipColors,
+                            border = chipBorder(day.calendarDay in repeatDays),
+                            shape = CircleShape,
                             onClick = {
                                 repeatDays = if (day.calendarDay in repeatDays) {
                                     repeatDays - day.calendarDay
@@ -536,13 +663,10 @@ private fun EditorScreen(
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = colors.lineB)
 
             Column {
-                Text(
-                    stringResource(R.string.section_snooze_duration),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                Eyebrow(stringResource(R.string.section_snooze_duration))
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -551,6 +675,9 @@ private fun EditorScreen(
                     listOf(3, 5, 10, 15, 30).forEach { min ->
                         FilterChip(
                             selected = snoozeMinutes == min,
+                            colors = chipColors,
+                            border = chipBorder(snoozeMinutes == min),
+                            shape = CircleShape,
                             onClick = { snoozeMinutes = min },
                             label = { Text(stringResource(R.string.snooze_minutes_chip, min)) },
                         )
@@ -559,10 +686,7 @@ private fun EditorScreen(
             }
 
             Column {
-                Text(
-                    stringResource(R.string.section_snooze_count),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                Eyebrow(stringResource(R.string.section_snooze_count))
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -571,6 +695,9 @@ private fun EditorScreen(
                     listOf(0, 1, 2, 3, 5, 10).forEach { n ->
                         FilterChip(
                             selected = maxSnoozes == n,
+                            colors = chipColors,
+                            border = chipBorder(maxSnoozes == n),
+                            shape = CircleShape,
                             onClick = { maxSnoozes = n },
                             label = {
                                 Text(
@@ -584,10 +711,7 @@ private fun EditorScreen(
             }
 
             Column {
-                Text(
-                    stringResource(R.string.section_ring_timeout),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                Eyebrow(stringResource(R.string.section_ring_timeout))
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -596,6 +720,9 @@ private fun EditorScreen(
                     Alarm.RING_TIMEOUT_CHOICES.forEach { min ->
                         FilterChip(
                             selected = ringTimeoutMinutes == min,
+                            colors = chipColors,
+                            border = chipBorder(ringTimeoutMinutes == min),
+                            shape = CircleShape,
                             onClick = { ringTimeoutMinutes = min },
                             label = { Text(stringResource(R.string.snooze_minutes_chip, min)) },
                         )
@@ -605,22 +732,22 @@ private fun EditorScreen(
                 Text(
                     stringResource(R.string.section_ring_timeout_hint),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = colors.ink3,
                 )
             }
 
             Text(
                 stringResource(R.string.editor_hint),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.ink3,
             )
 
             Button(
                 onClick = {
                     onSave(
                         (initial ?: Alarm()).copy(
-                            hour = timeState.hour,
-                            minute = timeState.minute,
+                            hour = hour,
+                            minute = minute,
                             label = label.trim(),
                             enabled = true,
                             repeatDays = repeatDays,
@@ -631,8 +758,10 @@ private fun EditorScreen(
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.btnBg, contentColor = colors.btnFg),
             ) {
-                Text(stringResource(R.string.save), fontSize = 16.sp)
+                Text(stringResource(R.string.save), fontSize = 15.sp)
             }
         }
     }
