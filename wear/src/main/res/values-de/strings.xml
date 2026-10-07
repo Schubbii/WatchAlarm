@@ -17,6 +17,4 @@
     <!-- Klingel-Screen -->
     <string name="stop">Stopp</string>
     <string name="ring_hint">oder am Handy ausschalten</string>
-    <!-- Schlafplaner -->
-    <string name="planner_entry">🌙 Schlafplaner</string>
 </resources>

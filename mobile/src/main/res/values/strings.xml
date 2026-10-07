@@ -34,10 +34,9 @@
     <string name="stop">Stop</string>
     <string name="snooze_with_duration">Snooze (%1$d min)</string>
     <!-- Schlafplaner (gemeinsame Texte liegen in core) -->
-    <string name="planner_open" translatable="false">🌙</string>
-    <string name="planner_wake_time_button">Wake up at %1$s</string>
-    <string name="ok" translatable="false">OK</string>
-    <string name="health_title">Use your sleep data</string>
+    <!-- Symbole vor den Planer-Zeilen, wie 😴 vor der Schlafdauer -->
+    <string name="planner_summary" translatable="false">😴 %1$s</string>
+    <string name="planner_recommended" translatable="false">⭐ %1$s</string>
     <string name="health_explanation">RiseAlarm can read your sleep from Health Connect for the last 7 nights. It uses only the total sleep per night to show your average and sleep debt and to recommend how many cycles you need. These totals stay on your phone and watch.</string>
     <string name="health_rationale_title">Your sleep data</string>
     <string name="health_rationale_details">Only sleep sessions are read — no other health data. RiseAlarm never writes to Health Connect and never sends anything to the developer or third parties. You can revoke access at any time in Health Connect; the planner then keeps working without a recommendation.</string>

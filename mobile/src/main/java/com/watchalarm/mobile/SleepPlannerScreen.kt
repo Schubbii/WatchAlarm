@@ -4,26 +4,25 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,13 +31,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -56,7 +50,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -81,15 +74,20 @@ import kotlinx.coroutines.launch
 
 /**
  * Schlafplaner am Handy — dieselbe Rechnung ([SleepPlanner]) und dieselben
- * Texte ([SleepPlannerFormat]) wie auf der Uhr, nur mit mehr Platz: Hier
- * sitzen zusätzlich die Verbindung zu Health Connect und die Einstellungen.
+ * Texte ([SleepPlannerFormat]) wie auf der Uhr.
+ *
+ * Gestaltet wie der Wecker-Editor und die Alarmliste, mit denselben
+ * Bausteinen: Scaffold mit Zurück-Pfeil, scrollende Spalte mit 20dp Abstand,
+ * Abschnittstitel in titleSmall, FilterChips zur Auswahl, TimePicker mittig,
+ * Vorschläge als Karten wie die Wecker-Karten (große, leichte Uhrzeit,
+ * Hervorhebung in Primärfarbe wie die 😴-Schlafdauer). Kein Dialog: Ein
+ * gestellter Wecker führt wie „Speichern" zurück in die Liste.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun SleepPlannerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
     BackHandler(onBack = onBack)
 
     var mode by rememberSaveable { mutableStateOf(PlannerMode.SLEEP_NOW) }
@@ -97,7 +95,6 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
     val now = rememberCurrentMinute()
 
     val settings = remember(storeVersion) { SleepPlannerStore.getSettings(context) }
-    val wakeTime = remember(storeVersion) { SleepPlannerStore.getWakeTime(context) }
     val summary = remember(storeVersion, now) { SleepPlannerStore.summary(context) }
     val reminderAt = remember(storeVersion, now) { BedtimeReminder.scheduledAt(context) }
     val promptDismissed = remember(storeVersion) { SleepPlannerStore.isHealthPromptDismissed(context) }
@@ -111,19 +108,22 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
         scope.launch { healthStatus = SleepHealth.refresh(context) }
     }
 
+    // Wie im Editor: TimePicker direkt auf der Seite, Uhrzeitformat vom Gerät.
+    val initialWake = remember { SleepPlannerStore.getWakeTime(context) }
+    val timeState = rememberTimePickerState(
+        initialHour = initialWake.hour,
+        initialMinute = initialWake.minute,
+        is24Hour = android.text.format.DateFormat.is24HourFormat(context),
+    )
+    val wakeTime = LocalTime.of(timeState.hour, timeState.minute)
+    LaunchedEffect(wakeTime) { SleepPlannerStore.setWakeTime(context, wakeTime) }
+
     val nowZoned = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
     val suggestions = when (mode) {
         PlannerMode.SLEEP_NOW -> SleepPlanner.wakeTimes(nowZoned, settings)
         PlannerMode.WAKE_UP_AT -> SleepPlanner.bedtimes(wakeTime, nowZoned, settings)
     }
     val recommended = SleepPlanner.recommendedCycles(summary)
-
-    var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var pendingBedtime by remember { mutableStateOf<SleepSuggestion?>(null) }
-
-    fun showMessage(text: String) {
-        scope.launch { snackbar.showSnackbar(text) }
-    }
 
     Scaffold(
         topBar = {
@@ -136,56 +136,48 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf(
-                        PlannerMode.SLEEP_NOW to CoreR.string.core_planner_mode_now,
-                        PlannerMode.WAKE_UP_AT to CoreR.string.core_planner_mode_wake,
-                    ).forEachIndexed { index, (option, label) ->
-                        SegmentedButton(
-                            selected = mode == option,
-                            onClick = { mode = option },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
-                        ) {
-                            Text(stringResource(label))
-                        }
-                    }
+            // Betriebsart als FilterChips, wie die Auswahlen im Editor.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf(
+                    PlannerMode.SLEEP_NOW to CoreR.string.core_planner_mode_now,
+                    PlannerMode.WAKE_UP_AT to CoreR.string.core_planner_mode_wake,
+                ).forEach { (option, label) ->
+                    FilterChip(
+                        selected = mode == option,
+                        onClick = { mode = option },
+                        label = { Text(stringResource(label)) },
+                    )
                 }
             }
+
             if (mode == PlannerMode.WAKE_UP_AT) {
-                item {
-                    OutlinedButton(
-                        onClick = { showTimePicker = true },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                    ) {
-                        Text(
-                            stringResource(
-                                R.string.planner_wake_time_button,
-                                SleepPlannerFormat.time(context, SleepPlanner.nextOccurrence(wakeTime, nowZoned)),
-                            ),
-                            fontSize = 18.sp,
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TimePicker(state = timeState)
                 }
             }
-            item {
-                SleepDataCard(
-                    status = healthStatus,
-                    summary = summary,
-                    promptDismissed = promptDismissed,
-                    onConnect = { permissionLauncher.launch(SleepHealth.PERMISSIONS) },
-                    onDismissPrompt = { SleepPlannerStore.setHealthPromptDismissed(context, true) },
-                    onInstall = { openHealthConnectInstall(context) },
-                )
-            }
-            item {
+
+            SleepDataSection(
+                status = healthStatus,
+                summary = summary,
+                promptDismissed = promptDismissed,
+                onConnect = { permissionLauncher.launch(SleepHealth.PERMISSIONS) },
+                onDismissPrompt = { SleepPlannerStore.setHealthPromptDismissed(context, true) },
+                onInstall = { openHealthConnectInstall(context) },
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     stringResource(
                         if (mode == PlannerMode.SLEEP_NOW) CoreR.string.core_planner_waketimes_header
@@ -193,122 +185,67 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
                     ),
                     style = MaterialTheme.typography.titleSmall,
                 )
-            }
-            items(suggestions, key = { "${mode.name}-${it.cycles}" }) { suggestion ->
-                SuggestionCard(
-                    suggestion = suggestion,
-                    recommended = suggestion.cycles == recommended,
-                    onClick = {
-                        if (mode == PlannerMode.SLEEP_NOW) {
-                            SleepPlannerActions.setWakeAlarm(context, suggestion.time)
-                            showMessage(
-                                context.getString(
-                                    CoreR.string.core_planner_alarm_set,
-                                    SleepPlannerFormat.time(context, suggestion.time),
+                suggestions.forEach { suggestion ->
+                    SuggestionCard(
+                        suggestion = suggestion,
+                        recommended = suggestion.cycles == recommended,
+                        onClick = {
+                            if (mode == PlannerMode.SLEEP_NOW) {
+                                SleepPlannerActions.setWakeAlarm(context, suggestion.time)
+                                toast(context, CoreR.string.core_planner_alarm_set, suggestion)
+                                onBack()
+                            } else {
+                                val wake = suggestion.time.plusMinutes(
+                                    (settings.fallAsleepMinutes + suggestion.sleepMinutes).toLong()
                                 )
-                            )
-                        } else {
-                            pendingBedtime = suggestion
-                        }
-                    },
-                )
-            }
-            if (reminderAt != null) {
-                item {
-                    val time = Instant.ofEpochMilli(reminderAt).atZone(ZoneId.systemDefault())
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                stringResource(
-                                    CoreR.string.core_planner_reminder_active,
-                                    SleepPlannerFormat.time(context, time),
-                                ),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { BedtimeReminder.cancel(context) }) {
-                                Text(stringResource(CoreR.string.core_planner_reminder_cancel))
+                                BedtimeReminder.schedule(
+                                    context,
+                                    suggestion.time.toInstant().toEpochMilli(),
+                                    wake.toInstant().toEpochMilli(),
+                                )
+                                toast(context, CoreR.string.core_planner_reminder_set, suggestion)
                             }
-                        }
-                    }
+                        },
+                    )
+                }
+                if (reminderAt != null) {
+                    ReminderCard(
+                        time = SleepPlannerFormat.time(
+                            context,
+                            Instant.ofEpochMilli(reminderAt).atZone(ZoneId.systemDefault()),
+                        ),
+                        onCancel = { BedtimeReminder.cancel(context) },
+                    )
                 }
             }
-            item {
-                Text(
-                    stringResource(CoreR.string.core_planner_disclaimer),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            item { HorizontalDivider() }
-            item {
-                PlannerSettings(
-                    settings = settings,
-                    healthStatus = healthStatus,
-                    onChange = { SleepPlannerStore.setSettings(context, it) },
-                    onConnect = { permissionLauncher.launch(SleepHealth.PERMISSIONS) },
-                    onManage = { openHealthConnectSettings(context) },
-                    onInstall = { openHealthConnectInstall(context) },
-                )
-            }
+
+            Text(
+                stringResource(CoreR.string.core_planner_disclaimer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            HorizontalDivider()
+
+            PlannerSettings(
+                settings = settings,
+                healthStatus = healthStatus,
+                onChange = { SleepPlannerStore.setSettings(context, it) },
+                onConnect = { permissionLauncher.launch(SleepHealth.PERMISSIONS) },
+                onManage = { openHealthConnectSettings(context) },
+                onInstall = { openHealthConnectInstall(context) },
+            )
         }
     }
+}
 
-    if (showTimePicker) {
-        val timeState = rememberTimePickerState(
-            initialHour = wakeTime.hour,
-            initialMinute = wakeTime.minute,
-            is24Hour = android.text.format.DateFormat.is24HourFormat(context),
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        SleepPlannerStore.setWakeTime(context, LocalTime.of(timeState.hour, timeState.minute))
-                        showTimePicker = false
-                    },
-                ) { Text(stringResource(R.string.ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
-                    Text(stringResource(CoreR.string.core_planner_cancel))
-                }
-            },
-            text = { TimePicker(state = timeState) },
-        )
-    }
-
-    pendingBedtime?.let { bedtime ->
-        val timeText = SleepPlannerFormat.time(context, bedtime.time)
-        AlertDialog(
-            onDismissRequest = { pendingBedtime = null },
-            title = { Text(stringResource(CoreR.string.core_planner_reminder_question, timeText)) },
-            text = { Text(SleepPlannerFormat.line(context, bedtime)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val wake = bedtime.time.plusMinutes((settings.fallAsleepMinutes + bedtime.sleepMinutes).toLong())
-                        BedtimeReminder.schedule(
-                            context,
-                            bedtime.time.toInstant().toEpochMilli(),
-                            wake.toInstant().toEpochMilli(),
-                        )
-                        pendingBedtime = null
-                        showMessage(context.getString(CoreR.string.core_planner_reminder_set, timeText))
-                    },
-                ) { Text(stringResource(CoreR.string.core_planner_reminder_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingBedtime = null }) {
-                    Text(stringResource(CoreR.string.core_planner_cancel))
-                }
-            },
-        )
-    }
+/** Kurze Bestätigung mit der Uhrzeit des Vorschlags. */
+private fun toast(context: Context, message: Int, suggestion: SleepSuggestion) {
+    Toast.makeText(
+        context,
+        context.getString(message, SleepPlannerFormat.time(context, suggestion.time)),
+        Toast.LENGTH_SHORT,
+    ).show()
 }
 
 /** Auslöser fürs Neuberechnen, wenn sich Einstellungen oder Nächte ändern. */
@@ -326,13 +263,13 @@ private fun rememberPlannerStoreVersion(): Int {
 }
 
 /**
- * Zusammenfassung der letzten Nächte — oder, solange es keine gibt, der
- * Hinweis, warum sich das Verbinden lohnt. Ohne Daten und nach „Nicht jetzt"
- * verschwindet die Karte; der Rechner funktioniert dann einfach ohne
- * Empfehlung weiter.
+ * Zusammenfassung der letzten Nächte in Primärfarbe, wie die Schlafdauer
+ * auf den Wecker-Karten. Solange es keine gibt: der Hinweis zum Verbinden,
+ * gestaltet wie der Vollbild-Hinweis der Alarmliste (secondaryContainer,
+ * bodyMedium, 16dp). Ohne Daten und nach „Nicht jetzt" erscheint nichts.
  */
 @Composable
-private fun SleepDataCard(
+private fun SleepDataSection(
     status: SleepHealth.Status?,
     summary: SleepSummary?,
     promptDismissed: Boolean,
@@ -342,48 +279,38 @@ private fun SleepDataCard(
 ) {
     val context = LocalContext.current
     when {
-        summary != null -> Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    SleepPlannerFormat.average(context, summary),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Text(
-                    SleepPlannerFormat.debt(context, summary),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
+        summary != null -> Column {
+            Text(
+                stringResource(R.string.planner_summary, SleepPlannerFormat.average(context, summary)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                SleepPlannerFormat.debt(context, summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
         promptDismissed -> Unit
         status == SleepHealth.Status.NOT_GRANTED || status == SleepHealth.Status.NEEDS_INSTALL -> Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = if (status == SleepHealth.Status.NEEDS_INSTALL) onInstall else onConnect),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    stringResource(R.string.health_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Spacer(Modifier.height(4.dp))
-                // Die Begründung steht hier, *bevor* der Systemdialog kommt.
-                Text(
-                    stringResource(R.string.health_explanation),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismissPrompt) { Text(stringResource(R.string.health_not_now)) }
-                    if (status == SleepHealth.Status.NEEDS_INSTALL) {
-                        TextButton(onClick = onInstall) { Text(stringResource(R.string.health_install)) }
-                    } else {
-                        TextButton(onClick = onConnect) { Text(stringResource(R.string.health_connect)) }
-                    }
+            // Die Begründung steht hier, *bevor* der Systemdialog kommt.
+            Text(
+                stringResource(R.string.health_explanation),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+            )
+            Row(modifier = Modifier.fillMaxWidth().padding(end = 8.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismissPrompt) { Text(stringResource(R.string.health_not_now)) }
+                if (status == SleepHealth.Status.NEEDS_INSTALL) {
+                    TextButton(onClick = onInstall) { Text(stringResource(R.string.health_install)) }
+                } else {
+                    TextButton(onClick = onConnect) { Text(stringResource(R.string.health_connect)) }
                 }
             }
         }
@@ -391,56 +318,60 @@ private fun SleepDataCard(
     }
 }
 
+/**
+ * Ein Vorschlag, aufgebaut wie eine Wecker-Karte: große, leichte Uhrzeit,
+ * darunter bodyMedium, Hervorhebung in Primärfarbe. Vergangene
+ * Schlafenszeiten sehen aus wie ein ausgeschalteter Wecker und sind nicht
+ * antippbar.
+ */
 @Composable
 private fun SuggestionCard(suggestion: SleepSuggestion, recommended: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Vergangene Schlafenszeiten: sichtbar, aber ausgegraut und
-            // nicht antippbar.
-            .alpha(if (suggestion.available) 1f else 0.38f)
-            .clickable(enabled = suggestion.available, onClick = onClick),
-        colors = if (recommended) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        } else {
-            CardDefaults.cardColors()
-        },
+        modifier = Modifier.fillMaxWidth().clickable(enabled = suggestion.available, onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                // Wie die Uhrzeit in der Alarmliste: groß und leicht.
-                Text(
-                    SleepPlannerFormat.time(context, suggestion.time),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Light,
-                )
-                Text(SleepPlannerFormat.details(context, suggestion), style = MaterialTheme.typography.bodyMedium)
-            }
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(
+                SleepPlannerFormat.time(context, suggestion.time),
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Light,
+                color = if (suggestion.available) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(SleepPlannerFormat.details(context, suggestion), style = MaterialTheme.typography.bodyMedium)
             if (recommended) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        stringResource(CoreR.string.core_planner_recommended),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 4.dp),
-                    )
-                }
+                Text(
+                    stringResource(R.string.planner_recommended, stringResource(CoreR.string.core_planner_recommended)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }
 }
 
-/** Einstellungen wie im Wecker-Editor: Chips pro Wert. */
+/** Gestellte Erinnerung — wie ein Wecker mit Schalter; aus = gelöscht. */
+@Composable
+private fun ReminderCard(time: String, onCancel: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(CoreR.string.core_planner_reminder_active, time),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = true, onCheckedChange = { if (!it) onCancel() })
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlannerSettings(

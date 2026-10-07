@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ import androidx.wear.compose.material.TimeText
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
+import com.watchalarm.core.R as CoreR
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
@@ -221,7 +223,10 @@ private fun WatchList(
             item {
                 Chip(
                     onClick = onOpenPlanner,
-                    label = { Text(stringResource(R.string.planner_entry)) },
+                    label = { Text(stringResource(CoreR.string.core_planner_title)) },
+                    icon = {
+                        Icon(painterResource(CoreR.drawable.ic_core_bedtime), contentDescription = null)
+                    },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )

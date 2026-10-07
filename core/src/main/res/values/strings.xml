@@ -21,9 +21,6 @@
     <string name="core_planner_title">Sleep planner</string>
     <string name="core_planner_mode_wake">Wake up at…</string>
     <string name="core_planner_mode_now">Sleep now</string>
-    <!-- Kurzformen für den runden Uhr-Bildschirm -->
-    <string name="core_planner_mode_wake_short">Wake at</string>
-    <string name="core_planner_mode_now_short">Sleep now</string>
     <string name="core_planner_bedtimes_header">Go to bed at</string>
     <string name="core_planner_waketimes_header">Wake up at</string>
     <string name="core_planner_recommended">Recommended</string>
@@ -40,12 +37,8 @@
     <string name="core_sleep_no_debt">No sleep debt</string>
     <string name="core_planner_alarm_label">Sleep planner</string>
     <string name="core_planner_alarm_set">Alarm set for %1$s</string>
-    <string name="core_planner_reminder_question">Remind me to go to bed at %1$s?</string>
-    <string name="core_planner_reminder_confirm">Remind me</string>
     <string name="core_planner_reminder_set">Reminder set for %1$s</string>
     <string name="core_planner_reminder_active">🌙 Reminder at %1$s</string>
-    <string name="core_planner_reminder_cancel">Cancel reminder</string>
-    <string name="core_planner_cancel">Cancel</string>
     <string name="core_planner_settings">Settings</string>
     <string name="core_planner_setting_cycle">Sleep cycle</string>
     <string name="core_planner_setting_fall_asleep">Time to fall asleep</string>

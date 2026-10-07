@@ -1,17 +1,14 @@
 package com.watchalarm.wear
 
+import android.content.Context
 import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,30 +21,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
-import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.RadioButton
 import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
-import androidx.wear.compose.material.dialog.Alert
-import androidx.wear.compose.material.dialog.Confirmation
-import androidx.wear.compose.material.dialog.Dialog
+import androidx.wear.compose.material.ToggleChip
 import com.watchalarm.core.BedtimeReminder
-import com.watchalarm.core.R as CoreR
 import com.watchalarm.core.PlannerMode
+import com.watchalarm.core.R as CoreR
 import com.watchalarm.core.SleepPlanner
 import com.watchalarm.core.SleepPlannerActions
 import com.watchalarm.core.SleepPlannerFormat
@@ -57,13 +49,13 @@ import com.watchalarm.core.SleepSuggestion
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.ZonedDateTime
 
 /**
- * Schlafplaner auf der Uhr: oben die Betriebsart, im Modus „Aufwachen um"
- * darunter die Uhrzeit (Krone wie im Editor), dann die Vorschläge als große
- * Chips. Die Rechnung liegt komplett in [SleepPlanner]; hier wird nur
- * angezeigt und weitergereicht.
+ * Schlafplaner auf der Uhr. Gestaltet wie Alarmliste und Editor — dieselben
+ * Bausteine, keine eigenen: Chips in den Standardfarben, Schalter wie bei den
+ * Weckern, Picker wie im Editor, Hinweise in caption3, Emoji als Symbole.
+ * Kein Dialog: Wie „Speichern" im Editor führt ein gestellter Wecker zurück
+ * in die Liste, wo er sofort zu sehen ist.
  */
 @Composable
 internal fun SleepPlannerScreen(onBack: () -> Unit) {
@@ -118,13 +110,6 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
     }
     val recommended = SleepPlanner.recommendedCycles(summary)
 
-    // Bestätigung nach dem Stellen eines Weckers. Der Text bleibt stehen,
-    // während der Dialog ausblendet — sonst wäre er im Ausblenden leer.
-    var confirmMessage by remember { mutableStateOf("") }
-    var showConfirm by remember { mutableStateOf(false) }
-    var pendingBedtime by remember { mutableStateOf<SleepSuggestion?>(null) }
-    var shownBedtime by remember { mutableStateOf<SleepSuggestion?>(null) }
-
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -136,8 +121,23 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             },
         ) {
             item { ListHeader { Text(stringResource(CoreR.string.core_planner_title)) } }
-            item {
-                ModeToggle(mode = mode, onModeChange = { mode = it })
+            // Betriebsart als zwei Auswahl-Chips mit Radio-Knopf — dieselbe
+            // Chip-Familie wie die Wecker mit ihrem Schalter.
+            items(listOf(PlannerMode.SLEEP_NOW, PlannerMode.WAKE_UP_AT)) { option ->
+                ToggleChip(
+                    checked = mode == option,
+                    onCheckedChange = { if (it) mode = option },
+                    label = {
+                        Text(
+                            stringResource(
+                                if (option == PlannerMode.SLEEP_NOW) CoreR.string.core_planner_mode_now
+                                else CoreR.string.core_planner_mode_wake
+                            )
+                        )
+                    },
+                    toggleControl = { RadioButton(selected = mode == option) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (mode == PlannerMode.WAKE_UP_AT) {
                 item { WatchTimePickerRow(timeState) }
@@ -147,7 +147,7 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                     Text(
                         SleepPlannerFormat.average(context, summary) + "\n" +
                             SleepPlannerFormat.debt(context, summary),
-                        style = MaterialTheme.typography.caption2,
+                        style = MaterialTheme.typography.caption3,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
@@ -170,14 +170,11 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                     onClick = {
                         if (mode == PlannerMode.SLEEP_NOW) {
                             SleepPlannerActions.setWakeAlarm(context, suggestion.time)
-                            confirmMessage = context.getString(
-                                CoreR.string.core_planner_alarm_set,
-                                SleepPlannerFormat.time(context, suggestion.time),
-                            )
-                            showConfirm = true
+                            toast(context, CoreR.string.core_planner_alarm_set, suggestion)
+                            onBack()
                         } else {
-                            pendingBedtime = suggestion
-                            shownBedtime = suggestion
+                            scheduleReminder(context, suggestion, settings)
+                            toast(context, CoreR.string.core_planner_reminder_set, suggestion)
                         }
                     },
                 )
@@ -185,13 +182,19 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             if (reminderAt != null) {
                 item {
                     val time = Instant.ofEpochMilli(reminderAt).atZone(ZoneId.systemDefault())
-                    Chip(
-                        onClick = { BedtimeReminder.cancel(context) },
+                    // Wie ein Wecker in der Liste: Schalter aus = Erinnerung weg.
+                    ToggleChip(
+                        checked = true,
+                        onCheckedChange = { if (!it) BedtimeReminder.cancel(context) },
                         label = {
-                            Text(stringResource(CoreR.string.core_planner_reminder_active, SleepPlannerFormat.time(context, time)))
+                            Text(
+                                stringResource(
+                                    CoreR.string.core_planner_reminder_active,
+                                    SleepPlannerFormat.time(context, time),
+                                )
+                            )
                         },
-                        secondaryLabel = { Text(stringResource(CoreR.string.core_planner_reminder_cancel)) },
-                        colors = ChipDefaults.secondaryChipColors(),
+                        toggleControl = { Switch(checked = true) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -215,120 +218,40 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             }
         }
     }
+}
 
-    Dialog(showDialog = showConfirm, onDismissRequest = { showConfirm = false }) {
-        Confirmation(
-            onTimeout = { showConfirm = false },
-            icon = { Icon(Icons.Filled.Check, contentDescription = null) },
-        ) {
-            Text(confirmMessage, textAlign = TextAlign.Center)
-        }
-    }
-
-    Dialog(showDialog = pendingBedtime != null, onDismissRequest = { pendingBedtime = null }) {
-        val bedtime = shownBedtime
-        Alert(
-            title = {
-                Text(
-                    if (bedtime == null) "" else stringResource(
-                        CoreR.string.core_planner_reminder_question,
-                        SleepPlannerFormat.time(context, bedtime.time),
-                    ),
-                    textAlign = TextAlign.Center,
-                )
-            },
-            negativeButton = {
-                Button(
-                    onClick = { pendingBedtime = null },
-                    colors = ButtonDefaults.secondaryButtonColors(),
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(CoreR.string.core_planner_cancel))
-                }
-            },
-            positiveButton = {
-                Button(
-                    onClick = {
-                        if (bedtime != null) {
-                            scheduleReminder(context, bedtime, settings)
-                            confirmMessage = context.getString(
-                                CoreR.string.core_planner_reminder_set,
-                                SleepPlannerFormat.time(context, bedtime.time),
-                            )
-                            showConfirm = true
-                        }
-                        pendingBedtime = null
-                    },
-                ) {
-                    Icon(Icons.Filled.Check, contentDescription = stringResource(CoreR.string.core_planner_reminder_confirm))
-                }
-            },
-        )
-    }
+/** Kurze Bestätigung mit der Uhrzeit des Vorschlags. */
+private fun toast(context: Context, message: Int, suggestion: SleepSuggestion) {
+    Toast.makeText(
+        context,
+        context.getString(message, SleepPlannerFormat.time(context, suggestion.time)),
+        Toast.LENGTH_SHORT,
+    ).show()
 }
 
 /** Erinnerung zur Schlafenszeit; die passende Weckzeit steht später im Text. */
-private fun scheduleReminder(context: android.content.Context, bedtime: SleepSuggestion, settings: SleepSettings) {
-    val wake: ZonedDateTime = bedtime.time.plusMinutes((settings.fallAsleepMinutes + bedtime.sleepMinutes).toLong())
+private fun scheduleReminder(context: Context, bedtime: SleepSuggestion, settings: SleepSettings) {
+    val wake = bedtime.time.plusMinutes((settings.fallAsleepMinutes + bedtime.sleepMinutes).toLong())
     BedtimeReminder.schedule(context, bedtime.time.toInstant().toEpochMilli(), wake.toInstant().toEpochMilli())
 }
 
 /**
- * Umschalter zwischen den Betriebsarten. Zwei kompakte Chips statt eines
- * Schalters: Beide Optionen sind sichtbar, und die gewählte ist gefüllt —
- * wie ein Segmented Control, das Wear Material nicht hat.
- */
-@Composable
-private fun ModeToggle(mode: PlannerMode, onModeChange: (PlannerMode) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        listOf(
-            PlannerMode.SLEEP_NOW to CoreR.string.core_planner_mode_now_short,
-            PlannerMode.WAKE_UP_AT to CoreR.string.core_planner_mode_wake_short,
-        ).forEach { (option, label) ->
-            val isSelected = option == mode
-            CompactChip(
-                onClick = { onModeChange(option) },
-                label = {
-                    Text(
-                        stringResource(label),
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-                colors = if (isSelected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.weight(1f).semantics { selected = isSelected },
-            )
-        }
-    }
-}
-
-/**
- * Ein Vorschlag als Chip: groß die Uhrzeit, darunter Zyklen und Dauer.
- * Empfohlen = gefüllt und mit Stern; vergangene Schlafenszeiten sind
- * ausgegraut und nicht antippbar.
+ * Ein Vorschlag als Chip — Farben wie „Neuer Wecker". Die Empfehlung steht
+ * als ⭐ vorn in der Zweitzeile, so wie 😴 die Schlafdauer in der Liste
+ * markiert. Vergangene Schlafenszeiten sind ausgegraut und nicht antippbar.
  */
 @Composable
 private fun SuggestionChip(suggestion: SleepSuggestion, recommended: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
+    val details = SleepPlannerFormat.details(context, suggestion)
     Chip(
         onClick = onClick,
         enabled = suggestion.available,
         label = { Text(SleepPlannerFormat.time(context, suggestion.time)) },
-        secondaryLabel = { Text(SleepPlannerFormat.details(context, suggestion)) },
-        icon = if (recommended) {
-            {
-                Icon(
-                    Icons.Filled.Star,
-                    contentDescription = stringResource(CoreR.string.core_planner_recommended),
-                )
-            }
-        } else {
-            null
+        secondaryLabel = {
+            Text(if (recommended) stringResource(R.string.planner_recommended_prefix, details) else details)
         },
-        colors = if (recommended) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
+        colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),
     )
 }

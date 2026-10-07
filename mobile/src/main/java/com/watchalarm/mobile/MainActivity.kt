@@ -50,7 +50,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
@@ -69,9 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -300,14 +298,13 @@ private fun ListScreen(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     // Der Plus-Knopf bleibt dem neuen Wecker vorbehalten; der
-                    // Planer sitzt als Aktion in der Leiste — mit demselben
-                    // Mond wie auf der Uhr.
-                    val plannerDescription = stringResource(CoreR.string.core_planner_title)
-                    TextButton(
-                        onClick = onOpenPlanner,
-                        modifier = Modifier.semantics { contentDescription = plannerDescription },
-                    ) {
-                        Text(stringResource(R.string.planner_open), fontSize = 16.sp)
+                    // Planer sitzt als Symbol in der Leiste — derselbe Mond
+                    // wie auf dem Chip der Uhr.
+                    IconButton(onClick = onOpenPlanner) {
+                        Icon(
+                            painterResource(CoreR.drawable.ic_core_bedtime),
+                            contentDescription = stringResource(CoreR.string.core_planner_title),
+                        )
                     }
                 },
             )
