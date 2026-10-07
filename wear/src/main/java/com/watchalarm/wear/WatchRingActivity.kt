@@ -24,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,7 +81,7 @@ class WatchRingActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            RiseTheme {
                 val alarm by alarmState
                 alarm?.let { RingScreen(it) }
             }
@@ -144,8 +143,8 @@ class WatchRingActivity : ComponentActivity() {
         ) {
             Text(
                 alarm.formattedTime(this@WatchRingActivity),
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Light,
+                fontSize = 44.sp,
+                fontFamily = RiseSerif,
                 maxLines = 1,
             )
             if (alarm.label.isNotBlank()) {

@@ -257,9 +257,10 @@ internal fun WatchTimePickerRow(state: WatchTimeState) {
                 if (state.is24Hour) "%02d".format(index)
                 else if (index == 0) "12" else "$index",
                 fontSize = 28.sp,
+                fontFamily = RiseSerif,
             )
         }
-        Text(":", fontSize = 28.sp)
+        Text(":", fontSize = 28.sp, fontFamily = RiseSerif)
         Picker(
             state = state.minute,
             contentDescription = stringResource(R.string.picker_minute),
@@ -267,7 +268,7 @@ internal fun WatchTimePickerRow(state: WatchTimeState) {
             modifier = Modifier.width(pickerWidth).fillMaxSize()
                 .claimRotaryOnTouch { state.rotaryColumn = COLUMN_MINUTE },
         ) { index ->
-            Text("%02d".format(index), fontSize = 28.sp)
+            Text("%02d".format(index), fontSize = 28.sp, fontFamily = RiseSerif)
         }
         if (!state.is24Hour) {
             Picker(

@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         }
         AlarmSync.syncNow(this)
         setContent {
-            MaterialTheme {
+            RiseTheme {
                 WearApp()
             }
         }

@@ -25,13 +25,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +71,7 @@ class AlarmActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            RiseTheme(dark = true) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val alarm by alarmState
                     alarm?.let { RingScreen(it) }
@@ -175,8 +173,8 @@ class AlarmActivity : ComponentActivity() {
         ) {
             Text(
                 alarm.formattedTime(this@AlarmActivity),
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Light,
+                fontSize = 72.sp,
+                fontFamily = RiseSerif,
                 maxLines = 1,
             )
             if (alarm.label.isNotBlank()) {
