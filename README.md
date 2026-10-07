@@ -123,6 +123,7 @@ automatisch `versionCode + 1000`. Beide Apps zeigen die Version über
 Release-Signierung, Play-Console-Ablauf und die nötigen Berechtigungs-
 Deklarationen stehen in **[RELEASING.md](RELEASING.md)**.
 Datenschutzerklärung: **[PRIVACY.md](PRIVACY.md)**.
+Testliste für Handy und Uhr samt Ergebnissen: **[TESTING.md](TESTING.md)**.
 
 ## Sprachen
 
