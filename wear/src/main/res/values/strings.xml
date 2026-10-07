@@ -24,4 +24,6 @@
     <!-- Klingel-Screen -->
     <string name="stop">Stop</string>
     <string name="ring_hint">or turn off on your phone</string>
+    <!-- Schlafplaner (Texte des Planers selbst liegen in core) -->
+    <string name="planner_entry">🌙 Sleep planner</string>
 </resources>

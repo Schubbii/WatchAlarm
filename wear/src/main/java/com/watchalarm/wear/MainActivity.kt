@@ -10,14 +10,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -26,33 +23,17 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Button
@@ -62,23 +43,17 @@ import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Picker
-import androidx.wear.compose.material.PickerState
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.SplitToggleChip
 import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
-import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
 import com.watchalarm.core.RuntimeStore
 import com.watchalarm.core.SleepDuration
 import com.watchalarm.core.SyncContract
-import java.text.DateFormatSymbols
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -104,134 +79,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Wie oft und wie schnell der Fokus nachgefordert wird, siehe [rotaryFocus]. */
-private const val ROTARY_FOCUS_ATTEMPTS = 20
-private const val ROTARY_FOCUS_RETRY_MS = 50L
-
-/**
- * Den Fokus holen und behalten — Voraussetzung für alles Rotary.
- *
- * Wear liefert Rotary-Events nur an eine fokussierte Komponente. Ein einzelnes
- * `requestFocus()` beim Aufbau reicht dafür nicht: Ist der Knoten noch nicht
- * platziert, wirft der Aufruf, und weil sich danach nichts mehr ändert, bleibt
- * die Krone dauerhaft tot. Am Emulator ließ sich das gut sehen — im Editor kam
- * kein einziger Event an, und nach dem Zurück aus dem Editor reagierte auch
- * die Alarmliste nicht mehr.
- *
- * Deshalb ist [onFocusChanged] hier das Maß, nicht die Annahme, der Aufruf
- * habe schon gewirkt: Solange der Fokus fehlt, wird nachgefasst, und geht er
- * später verloren, fängt das von vorne an.
- */
-@Composable
-private fun Modifier.rotaryFocus(): Modifier {
-    val focusRequester = remember { FocusRequester() }
-    var focused by remember { mutableStateOf(false) }
-    LaunchedEffect(focused) {
-        if (focused) return@LaunchedEffect
-        repeat(ROTARY_FOCUS_ATTEMPTS) {
-            runCatching { focusRequester.requestFocus() }
-            delay(ROTARY_FOCUS_RETRY_MS)
-            if (focused) return@LaunchedEffect
-        }
-    }
-    return this
-        .onFocusChanged { focused = it.isFocused }
-        .focusRequester(focusRequester)
-        .focusable()
-}
-
-/**
- * Krone bzw. drehbare Lünette bedienen: Ohne das hier ließ sich die Liste auf
- * Pixel Watch und Galaxy Watch ausschließlich per Wischen scrollen.
- */
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun Modifier.rotaryScroll(state: ScalingLazyListState): Modifier {
-    val scope = rememberCoroutineScope()
-    return this
-        .onRotaryScrollEvent { event ->
-            scope.launch { state.scrollBy(event.verticalScrollPixels) }
-            true
-        }
-        .rotaryFocus()
-}
-
-/** Spalte im Editor, die die Krone gerade verstellt. */
-private const val COLUMN_HOUR = 0
-private const val COLUMN_MINUTE = 1
-private const val COLUMN_AM_PM = 2
-
-/** Höhe der Picker-Reihe. Sie zeigt drei Optionen übereinander. */
-private val PICKER_ROW_HEIGHT = 100.dp
-
-/** Aufsummierter Rotary-Weg. Bewusst kein State: niemand liest ihn beim Zeichnen. */
-private class RotaryAccumulator {
-    var pixels = 0f
-}
-
-/**
- * Krone bzw. drehbare Lünette auf die gerade gewählte Picker-Spalte legen.
- *
- * Im Editor forderte vorher überhaupt nichts den Fokus an, und Wear liefert
- * Rotary-Events nur an eine fokussierte Komponente — die Krone war dort also
- * nicht bloß nicht am Scrollen, sondern schlicht tot.
- *
- * Der Fokus sitzt bewusst am Container und nicht an den Pickern selbst: Die
- * stecken in Lazy-Items, die beim Scrollen entsorgt und neu aufgebaut werden,
- * und mit ihnen wäre auch der Fokus jedes Mal weg. Ein einziger, immer
- * vorhandener Knoten umgeht das — welche Spalte er verstellt, sagt [target].
- *
- * Der Picker springt in ganzen Optionen, die Events kommen aber als
- * Pixelbetrag herein. Ein direktes `scrollBy()` ließe ihn zwischen zwei
- * Optionen stehen, weil das Einrasten am Fling hängt und bei einem
- * programmatischen Scroll gar nicht greift. Deshalb wird der Weg aufsummiert
- * und erst bei genug davon eine Option weitergeschaltet.
- */
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun Modifier.rotaryTimePicker(target: () -> PickerState): Modifier {
-    val scope = rememberCoroutineScope()
-    val accumulator = remember { RotaryAccumulator() }
-    // Genau die Strecke, die ein Finger ziehen müsste, um eine Option
-    // weiterzukommen — Rotary-Pixel und Wischweg sind dieselbe Einheit.
-    // Hergeleitet statt geraten: eine feste Pixelzahl wäre auf Uhren mit
-    // anderer Dichte mal zäh und mal übersprungen.
-    val pixelsPerOption = with(LocalDensity.current) { (PICKER_ROW_HEIGHT / 3f).toPx() }
-    return this
-        .onRotaryScrollEvent { event ->
-            accumulator.pixels += event.verticalScrollPixels
-            val steps = (accumulator.pixels / pixelsPerOption).toInt()
-            if (steps != 0) {
-                accumulator.pixels -= steps * pixelsPerOption
-                val state = target()
-                val count = state.numberOfOptions
-                val next = ((state.selectedOption + steps) % count + count) % count
-                scope.launch { state.animateScrollToOption(next) }
-            }
-            true
-        }
-        .rotaryFocus()
-}
-
-/**
- * Die Krone beim Berühren zu dieser Spalte holen.
- *
- * Über `pointerInput`, weil Pickers eigenes `onSelected` nur an den Semantics
- * hängt und deshalb für Bedienungshilfen feuert, nicht für einen gewöhnlichen
- * Fingertipp.
- */
-private fun Modifier.claimRotaryOnTouch(onClaim: () -> Unit): Modifier =
-    pointerInput(onClaim) {
-        awaitPointerEventScope {
-            while (true) {
-                // Initial-Pass und nichts konsumieren: Der Picker soll die
-                // Berührung danach ganz normal selbst verarbeiten.
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.changes.any { it.pressed }) onClaim()
-            }
-        }
-    }
-
 @Composable
 private fun WearApp() {
     val context = LocalContext.current
@@ -243,6 +90,7 @@ private fun WearApp() {
     // Prozess-Neustart übersteht (Alarm ist nicht Parcelable).
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
+    var showPlanner by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         val prefs = AlarmStore.prefs(context)
@@ -261,7 +109,9 @@ private fun WearApp() {
         }
     }
 
-    if (showEditor) {
+    if (showPlanner) {
+        SleepPlannerScreen(onBack = { showPlanner = false })
+    } else if (showEditor) {
         WatchEditor(
             initial = editingId?.let { id -> alarms.firstOrNull { it.id == id } },
             onSave = { alarm ->
@@ -285,6 +135,7 @@ private fun WearApp() {
                 )
             },
             onAdd = { editingId = null; showEditor = true },
+            onOpenPlanner = { showPlanner = true },
             onEdit = { editingId = it.id; showEditor = true },
             onToggle = { alarm, enabled ->
                 AlarmStore.applyLocalChange(context) { list ->
@@ -295,29 +146,6 @@ private fun WearApp() {
     }
 }
 
-// ------------------------------------------------------------- Schlafdauer
-
-/**
- * Aktuelle Zeit, die sich zur vollen Minute selbst aktualisiert — sonst
- * bliebe die Schlafdauer in der Liste stehen. Läuft nur im Vordergrund.
- */
-@Composable
-private fun rememberCurrentMinute(): Long {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                val current = System.currentTimeMillis()
-                now = current
-                // Auf die nächste volle Minute takten statt stur 60 Sekunden.
-                delay(60_000L - current % 60_000L)
-            }
-        }
-    }
-    return now
-}
-
 // ------------------------------------------------------------------- Liste
 
 @Composable
@@ -326,6 +154,7 @@ private fun WatchList(
     ringingId: String?,
     onOpenRinging: (String) -> Unit,
     onAdd: () -> Unit,
+    onOpenPlanner: () -> Unit,
     onEdit: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
@@ -387,6 +216,16 @@ private fun WatchList(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            // Direkt unter "Neuer Wecker": Der Planer endet meist in einem
+            // neuen Wecker und gehört damit zur selben Handlung.
+            item {
+                Chip(
+                    onClick = onOpenPlanner,
+                    label = { Text(stringResource(R.string.planner_entry)) },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             item {
                 Text(
                     stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
@@ -408,33 +247,12 @@ private fun WatchEditor(
     onDelete: (Alarm) -> Unit,
     onBack: () -> Unit,
 ) {
-    val context = LocalContext.current
     BackHandler(onBack = onBack)
 
-    // Das Uhrzeitformat des Geräts übernehmen: auf 12-Stunden-Geräten stand
-    // im Editor "13", in der Liste aber "1:00 PM".
-    val is24Hour = remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
-    val initialHour = initial?.hour ?: 7
-
-    val hourState = rememberPickerState(
-        initialNumberOfOptions = if (is24Hour) 24 else 12,
-        initiallySelectedOption = if (is24Hour) initialHour else initialHour % 12,
+    val timeState = rememberWatchTimeState(
+        initialHour = initial?.hour ?: 7,
+        initialMinute = initial?.minute ?: 0,
     )
-    val minuteState = rememberPickerState(
-        initialNumberOfOptions = 60,
-        initiallySelectedOption = initial?.minute ?: 0,
-    )
-    val amPmState = rememberPickerState(
-        initialNumberOfOptions = 2,
-        initiallySelectedOption = if (initialHour >= 12) 1 else 0,
-    )
-    val amPmLabels = remember { DateFormatSymbols.getInstance().amPmStrings }
-    val pickerWidth = if (is24Hour) 60.dp else 44.dp
-
-    // Welche Spalte die Krone verstellt. Standard ist die Stunde: Das ist der
-    // erste Wert, den man einstellt, und ohne Vorbelegung wäre die Krone beim
-    // Öffnen wieder wirkungslos.
-    var rotaryColumn by remember { mutableStateOf(COLUMN_HOUR) }
 
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
@@ -444,13 +262,7 @@ private fun WatchEditor(
             // Pickern, gescrollt wird gewischt. Eine Krone, die die Liste
             // verschiebt, statt die Uhrzeit zu stellen, wäre die deutlich
             // schlechtere Hälfte des Tauschs.
-            modifier = Modifier.fillMaxSize().rotaryTimePicker {
-                when (rotaryColumn) {
-                    COLUMN_MINUTE -> minuteState
-                    COLUMN_AM_PM -> amPmState
-                    else -> hourState
-                }
-            },
+            modifier = Modifier.fillMaxSize().rotaryTimePicker(timeState),
         ) {
             item {
                 ListHeader {
@@ -461,48 +273,7 @@ private fun WatchEditor(
                     )
                 }
             }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Picker(
-                        state = hourState,
-                        contentDescription = stringResource(R.string.picker_hour),
-                        onSelected = { rotaryColumn = COLUMN_HOUR },
-                        modifier = Modifier.width(pickerWidth).fillMaxSize()
-                            .claimRotaryOnTouch { rotaryColumn = COLUMN_HOUR },
-                    ) { index ->
-                        Text(
-                            if (is24Hour) "%02d".format(index)
-                            else if (index == 0) "12" else "$index",
-                            fontSize = 28.sp,
-                        )
-                    }
-                    Text(":", fontSize = 28.sp)
-                    Picker(
-                        state = minuteState,
-                        contentDescription = stringResource(R.string.picker_minute),
-                        onSelected = { rotaryColumn = COLUMN_MINUTE },
-                        modifier = Modifier.width(pickerWidth).fillMaxSize()
-                            .claimRotaryOnTouch { rotaryColumn = COLUMN_MINUTE },
-                    ) { index ->
-                        Text("%02d".format(index), fontSize = 28.sp)
-                    }
-                    if (!is24Hour) {
-                        Picker(
-                            state = amPmState,
-                            contentDescription = stringResource(R.string.picker_am_pm),
-                            onSelected = { rotaryColumn = COLUMN_AM_PM },
-                            modifier = Modifier.width(48.dp).fillMaxSize()
-                                .claimRotaryOnTouch { rotaryColumn = COLUMN_AM_PM },
-                        ) { index ->
-                            Text(amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" }, fontSize = 20.sp)
-                        }
-                    }
-                }
-            }
+            item { WatchTimePickerRow(timeState) }
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -510,16 +281,10 @@ private fun WatchEditor(
                 ) {
                     Button(
                         onClick = {
-                            val hour = if (is24Hour) {
-                                hourState.selectedOption
-                            } else {
-                                (hourState.selectedOption % 12) +
-                                    if (amPmState.selectedOption == 1) 12 else 0
-                            }
                             onSave(
                                 (initial ?: Alarm()).copy(
-                                    hour = hour,
-                                    minute = minuteState.selectedOption,
+                                    hour = timeState.hourOfDay,
+                                    minute = timeState.minuteOfHour,
                                     enabled = true,
                                 )
                             )
