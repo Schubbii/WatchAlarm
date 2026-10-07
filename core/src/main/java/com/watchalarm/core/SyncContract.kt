@@ -12,6 +12,13 @@ object SyncContract {
     const val KEY_ALARMS_JSON = "alarms_json"
 
     /**
+     * Schlafnächte für den Schlafplaner (nur Datum + Minuten, siehe
+     * [SleepPlannerStore]). Schreibt nur das Handy, das Health Connect liest.
+     */
+    const val PATH_SLEEP = "/watchalarm/sleep"
+    const val KEY_SLEEP_JSON = "sleep_json"
+
+    /**
      * Lamport-Zähler statt Wanduhr-Zeitstempel: geräteunabhängig und
      * monoton, damit Änderungen von Uhr UND Handy zuverlässig ankommen —
      * auch wenn die Emulator-Uhren voneinander abweichen.

@@ -57,6 +57,29 @@ object AlarmSync {
         pushAlarms(context, snapshot.json, snapshot.version)
     }
 
+    /**
+     * Schlafnächte veröffentlichen. Kein Versionszähler wie bei den Alarmen:
+     * Es gibt nur einen Schreiber (das Handy), und jeder Stand ist komplett.
+     */
+    fun pushSleepNights(context: Context, json: String) {
+        val appContext = context.applicationContext
+        scope.launch {
+            try {
+                val request = PutDataMapRequest.create(SyncContract.PATH_SLEEP).apply {
+                    dataMap.putString(SyncContract.KEY_SLEEP_JSON, json)
+                }.asPutDataRequest()
+                Wearable.getDataClient(appContext).putDataItem(request).await()
+            } catch (e: Exception) {
+                Log.w(TAG, "pushSleepNights fehlgeschlagen (Gegenseite offline?)", e)
+            }
+        }
+    }
+
+    /** Empfangene Schlafnächte übernehmen; Unlesbares wird verworfen. */
+    internal fun applySleepNights(context: Context, json: String) {
+        if (SleepPlannerStore.nightsFromJson(json) != null) SleepPlannerStore.setNights(context, json)
+    }
+
     /** Message (Dismiss/Snooze) an alle verbundenen Nodes senden. */
     fun sendMessageToAll(context: Context, path: String, alarmId: String) {
         val appContext = context.applicationContext
@@ -87,6 +110,12 @@ object AlarmSync {
                 var bestAlarms: List<Alarm>? = null
                 try {
                     for (item in buffer) {
+                        if (item.uri.path == SyncContract.PATH_SLEEP) {
+                            DataMapItem.fromDataItem(item).dataMap
+                                .getString(SyncContract.KEY_SLEEP_JSON)
+                                ?.let { applySleepNights(appContext, it) }
+                            continue
+                        }
                         if (item.uri.path != SyncContract.PATH_ALARMS) continue
                         val map = DataMapItem.fromDataItem(item).dataMap
                         val v = map.getLong(SyncContract.KEY_VERSION)

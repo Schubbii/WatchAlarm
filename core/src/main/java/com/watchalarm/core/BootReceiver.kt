@@ -18,6 +18,7 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED -> {
                 AlarmScheduler.rescheduleAll(context)
+                BedtimeReminder.restore(context)
                 AlarmSync.syncNow(context)
             }
         }

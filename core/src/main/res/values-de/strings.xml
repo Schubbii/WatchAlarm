@@ -13,4 +13,40 @@
     <string name="core_duration_hours_minutes">%1$d Std. %2$d Min.</string>
     <string name="core_duration_hours">%1$d Std.</string>
     <string name="core_duration_minutes">%1$d Min.</string>
+    <!-- Schlafplaner -->
+    <string name="core_planner_title">Schlafplaner</string>
+    <string name="core_planner_mode_wake">Aufwachen um…</string>
+    <string name="core_planner_mode_now">Jetzt schlafen</string>
+    <string name="core_planner_mode_wake_short">Weckzeit</string>
+    <string name="core_planner_mode_now_short">Jetzt</string>
+    <string name="core_planner_bedtimes_header">Ins Bett um</string>
+    <string name="core_planner_waketimes_header">Aufwachen um</string>
+    <string name="core_planner_recommended">Empfohlen</string>
+    <string name="core_planner_disclaimer">Schätzung auf Basis durchschnittlicher Schlafzyklen, kein medizinisches Hilfsmittel.</string>
+    <plurals name="core_planner_cycles">
+        <item quantity="one">%d Zyklus</item>
+        <item quantity="other">%d Zyklen</item>
+    </plurals>
+    <plurals name="core_sleep_average">
+        <item quantity="one">Ø %1$s letzte Nacht</item>
+        <item quantity="other">Ø %1$s in den letzten %2$d Nächten</item>
+    </plurals>
+    <string name="core_sleep_debt">%1$s Schlafdefizit</string>
+    <string name="core_sleep_no_debt">Kein Schlafdefizit</string>
+    <string name="core_planner_alarm_label">Schlafplaner</string>
+    <string name="core_planner_alarm_set">Wecker gestellt auf %1$s</string>
+    <string name="core_planner_reminder_question">Um %1$s ans Schlafengehen erinnern?</string>
+    <string name="core_planner_reminder_confirm">Erinnern</string>
+    <string name="core_planner_reminder_set">Erinnerung um %1$s gestellt</string>
+    <string name="core_planner_reminder_active">🌙 Erinnerung um %1$s</string>
+    <string name="core_planner_reminder_cancel">Erinnerung löschen</string>
+    <string name="core_planner_cancel">Abbrechen</string>
+    <string name="core_planner_settings">Einstellungen</string>
+    <string name="core_planner_setting_cycle">Schlafzyklus</string>
+    <string name="core_planner_setting_fall_asleep">Einschlafzeit</string>
+    <string name="core_planner_setting_goal">Schlafziel</string>
+    <string name="core_bedtime_channel_name">Schlafenszeit-Erinnerung</string>
+    <string name="core_bedtime_channel_description">Erinnert dich, wenn es Zeit fürs Bett ist</string>
+    <string name="core_bedtime_title">Zeit fürs Bett 🌙</string>
+    <string name="core_bedtime_text">Jetzt schlafen gehen – dann wachst du um %1$s zwischen zwei Schlafzyklen auf.</string>
 </resources>

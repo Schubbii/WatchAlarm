@@ -16,6 +16,12 @@ class SyncListenerService : WearableListenerService() {
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         for (event in dataEvents) {
             if (event.type != DataEvent.TYPE_CHANGED) continue
+            if (event.dataItem.uri.path == SyncContract.PATH_SLEEP) {
+                DataMapItem.fromDataItem(event.dataItem).dataMap
+                    .getString(SyncContract.KEY_SLEEP_JSON)
+                    ?.let { AlarmSync.applySleepNights(this, it) }
+                continue
+            }
             if (event.dataItem.uri.path != SyncContract.PATH_ALARMS) continue
             val map = DataMapItem.fromDataItem(event.dataItem).dataMap
             val json = map.getString(SyncContract.KEY_ALARMS_JSON) ?: continue
