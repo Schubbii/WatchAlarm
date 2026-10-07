@@ -56,13 +56,22 @@ jobs:
             */build/intermediates/lint_intermediate_text_report/**/lint-results-*.txt
           if-no-files-found: ignore
 
-      - name: Debug-APKs hochladen
+      # Zum Installieren per adb gedacht: Release statt Debug, weil Debug-Builds
+      # (debuggable) von ART nicht optimiert werden und auf der Uhr spürbar
+      # ruckeln. Ohne Keystore signiert Gradle mit dem Debug-Key des Runners —
+      # der ist pro Lauf neu, deshalb Handy- und Uhr-APK immer aus demselben
+      # Lauf nehmen. Für Play taugen diese APKs nicht.
+      - name: Release-APKs bauen
+        run: ./gradlew :mobile:assembleRelease :wear:assembleRelease --stacktrace
+
+      - name: Release-APKs hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apks
+          name: apks-zum-installieren
           path: |
-            mobile/build/outputs/apk/debug/*.apk
-            wear/build/outputs/apk/debug/*.apk
+            mobile/build/outputs/apk/release/*.apk
+            wear/build/outputs/apk/release/*.apk
+          if-no-files-found: error
 
   release-bundles:
     # Nur wenn ein Keystore hinterlegt ist. Secrets sind in Forks leer.
