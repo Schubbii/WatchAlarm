@@ -7,9 +7,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,11 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -47,8 +50,9 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.SplitToggleChip
 import androidx.wear.compose.material.Switch
+import androidx.wear.compose.material.SwitchDefaults
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.ToggleChipDefaults
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
 import com.watchalarm.core.AlarmSync
@@ -74,7 +78,7 @@ class MainActivity : ComponentActivity() {
         }
         AlarmSync.syncNow(this)
         setContent {
-            MaterialTheme {
+            RiseWearTheme {
                 WearApp()
             }
         }
@@ -163,19 +167,27 @@ private fun WatchList(
     val context = LocalContext.current
     val now = rememberCurrentMinute()
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    // "Sleep face" des Entwurfs: fast schwarz, Pflaumenschimmer von unten.
+    Scaffold(
+        timeText = { RiseTimeText() },
+        modifier = Modifier
+            .background(RiseWear.background)
+            .riseGlow(RiseWear.plumGlow, centerY = 1.1f, radius = 0.6f),
+    ) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().rotaryScroll(listState),
         ) {
-            item { ListHeader { Text(stringResource(R.string.title_alarms)) } }
+            item { ListHeader { Eyebrow(stringResource(R.string.title_alarms)) } }
             if (ringingId != null) {
                 item {
                     Chip(
                         onClick = { onOpenRinging(ringingId) },
                         label = { Text(stringResource(R.string.alarm_active_open)) },
-                        colors = ChipDefaults.primaryChipColors(
-                            backgroundColor = MaterialTheme.colors.error,
+                        colors = ChipDefaults.gradientBackgroundChipColors(
+                            startBackgroundColor = RiseWear.sunLight,
+                            endBackgroundColor = RiseWear.sunDeep,
+                            contentColor = RiseWear.buttonInk,
                         ),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -203,9 +215,33 @@ private fun WatchList(
                     checked = alarm.enabled,
                     onCheckedChange = { onToggle(alarm, it) },
                     onClick = { onEdit(alarm) },
-                    label = { Text(alarm.formattedTime(context)) },
+                    label = {
+                        Text(
+                            alarm.formattedTime(context),
+                            style = SerifNumerals,
+                            fontSize = 22.sp,
+                            lineHeight = 24.sp,
+                            color = if (alarm.enabled) Color.White else RiseWear.textDim,
+                        )
+                    },
                     secondaryLabel = { if (secondary.isNotBlank()) Text(secondary) },
-                    toggleControl = { Switch(checked = alarm.enabled) },
+                    toggleControl = {
+                        Switch(
+                            checked = alarm.enabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = RiseWear.amber,
+                                checkedTrackColor = RiseWear.amber.copy(alpha = 0.5f),
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                            ),
+                        )
+                    },
+                    colors = ToggleChipDefaults.splitToggleChipColors(
+                        backgroundColor = RiseWear.item,
+                        contentColor = Color.White,
+                        secondaryContentColor = RiseWear.textDim,
+                        splitBackgroundOverlayColor = Color.White.copy(alpha = 0.04f),
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -214,7 +250,11 @@ private fun WatchList(
                     onClick = onAdd,
                     label = { Text(stringResource(R.string.new_alarm)) },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    colors = ChipDefaults.secondaryChipColors(),
+                    colors = ChipDefaults.chipColors(
+                        backgroundColor = RiseWear.item,
+                        contentColor = Color.White,
+                        iconColor = RiseWear.amber,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -227,7 +267,11 @@ private fun WatchList(
                     icon = {
                         Icon(painterResource(CoreR.drawable.ic_core_bedtime), contentDescription = null)
                     },
-                    colors = ChipDefaults.secondaryChipColors(),
+                    colors = ChipDefaults.chipColors(
+                        backgroundColor = RiseWear.item,
+                        contentColor = Color.White,
+                        iconColor = RiseWear.amber,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -235,6 +279,7 @@ private fun WatchList(
                 Text(
                     stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
                     style = MaterialTheme.typography.caption3,
+                    color = RiseWear.textFaint,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
@@ -254,13 +299,15 @@ private fun WatchEditor(
 ) {
     BackHandler(onBack = onBack)
 
+    // Uhrzeitformat des Geräts, Walze und Krone: gemeinsam mit dem
+    // Schlafplaner in WatchControls.kt.
     val timeState = rememberWatchTimeState(
         initialHour = initial?.hour ?: 7,
         initialMinute = initial?.minute ?: 0,
     )
 
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    Scaffold(timeText = { RiseTimeText() }, modifier = Modifier.background(RiseWear.background)) {
         ScalingLazyColumn(
             state = listState,
             // Kein rotaryScroll: Auf diesem Screen gehört die Krone den
@@ -271,7 +318,7 @@ private fun WatchEditor(
         ) {
             item {
                 ListHeader {
-                    Text(
+                    Eyebrow(
                         stringResource(
                             if (initial == null) R.string.new_alarm else R.string.title_edit_alarm
                         )
@@ -294,6 +341,10 @@ private fun WatchEditor(
                                 )
                             )
                         },
+                        colors = ButtonDefaults.primaryButtonColors(
+                            backgroundColor = RiseWear.amber,
+                            contentColor = RiseWear.buttonInk,
+                        ),
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.save))
                     }
@@ -301,7 +352,10 @@ private fun WatchEditor(
                         Spacer(Modifier.width(12.dp))
                         Button(
                             onClick = { onDelete(initial) },
-                            colors = ButtonDefaults.secondaryButtonColors(),
+                            colors = ButtonDefaults.secondaryButtonColors(
+                                backgroundColor = RiseWear.item,
+                                contentColor = Color.White,
+                            ),
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
                         }
@@ -312,6 +366,7 @@ private fun WatchEditor(
                 Text(
                     stringResource(R.string.editor_hint),
                     style = MaterialTheme.typography.caption3,
+                    color = RiseWear.textDim,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )

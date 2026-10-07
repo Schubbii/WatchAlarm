@@ -22,11 +22,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Begründung für den Zugriff auf Schlafdaten.
@@ -45,12 +45,24 @@ class PermissionsRationaleActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            val dark = androidx.compose.foundation.isSystemInDarkTheme()
-            MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+            RiseTheme {
+                val colors = Rise.colors
                 Scaffold(
+                    containerColor = colors.surface,
                     topBar = {
                         TopAppBar(
-                            title = { Text(stringResource(R.string.health_rationale_title)) },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = colors.surface,
+                                titleContentColor = colors.ink,
+                                navigationIconContentColor = colors.ink,
+                            ),
+                            title = {
+                                Text(
+                                    stringResource(R.string.health_rationale_title),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontSize = 30.sp,
+                                )
+                            },
                             navigationIcon = {
                                 IconButton(onClick = { finish() }) {
                                     Icon(
@@ -70,8 +82,16 @@ class PermissionsRationaleActivity : ComponentActivity() {
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Text(stringResource(R.string.health_explanation), style = MaterialTheme.typography.bodyLarge)
-                        Text(stringResource(R.string.health_rationale_details), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.health_explanation),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.ink,
+                        )
+                        Text(
+                            stringResource(R.string.health_rationale_details),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.ink2,
+                        )
                         OutlinedButton(
                             onClick = {
                                 runCatching {
@@ -79,7 +99,7 @@ class PermissionsRationaleActivity : ComponentActivity() {
                                 }
                             },
                         ) {
-                            Text(stringResource(R.string.health_privacy_policy))
+                            Text(stringResource(R.string.health_privacy_policy), color = colors.accent)
                         }
                     }
                 }

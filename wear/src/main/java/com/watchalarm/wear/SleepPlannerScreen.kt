@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,14 +20,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipColors
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
@@ -34,9 +38,10 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.RadioButton
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Switch
+import androidx.wear.compose.material.SwitchDefaults
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.ToggleChip
+import androidx.wear.compose.material.ToggleChipDefaults
 import com.watchalarm.core.BedtimeReminder
 import com.watchalarm.core.PlannerMode
 import com.watchalarm.core.R as CoreR
@@ -51,11 +56,11 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Schlafplaner auf der Uhr. Gestaltet wie Alarmliste und Editor — dieselben
- * Bausteine, keine eigenen: Chips in den Standardfarben, Schalter wie bei den
- * Weckern, Picker wie im Editor, Hinweise in caption3, Emoji als Symbole.
- * Kein Dialog: Wie „Speichern" im Editor führt ein gestellter Wecker zurück
- * in die Liste, wo er sofort zu sehen ist.
+ * Schlafplaner auf der Uhr, im Rise-Design wie Alarmliste und Editor:
+ * fast schwarzes Zifferblatt mit Pflaumenschimmer, Eyebrow-Überschriften,
+ * Einträge in [RiseWear.item], Uhrzeiten in Serif, Bernstein als Akzent,
+ * dieselbe Walze wie im Editor. Kein Dialog: Wie „Speichern" im Editor
+ * führt ein gestellter Wecker zurück in die Liste.
  */
 @Composable
 internal fun SleepPlannerScreen(onBack: () -> Unit) {
@@ -85,6 +90,34 @@ private fun rememberPlannerStoreVersion(): Int {
     return version
 }
 
+/** Fläche der Einträge wie "Neuer Wecker" in der Liste. */
+@Composable
+private fun riseChipColors(secondaryContent: Color = RiseWear.textDim): ChipColors = ChipDefaults.chipColors(
+    backgroundColor = RiseWear.item,
+    contentColor = Color.White,
+    secondaryContentColor = secondaryContent,
+    iconColor = RiseWear.amber,
+)
+
+/** Auswahl-/Schalter-Einträge in denselben Farben. */
+@Composable
+private fun riseToggleChipColors() = ToggleChipDefaults.toggleChipColors(
+    checkedStartBackgroundColor = RiseWear.item,
+    checkedEndBackgroundColor = RiseWear.item,
+    checkedContentColor = Color.White,
+    checkedSecondaryContentColor = RiseWear.textDim,
+    checkedToggleControlColor = RiseWear.amber,
+    uncheckedStartBackgroundColor = RiseWear.item,
+    uncheckedEndBackgroundColor = RiseWear.item,
+    uncheckedContentColor = Color.White,
+    uncheckedSecondaryContentColor = RiseWear.textDim,
+    uncheckedToggleControlColor = Color.White.copy(alpha = 0.6f),
+)
+
+/** Hintergrund wie die Alarmliste ("Sleep face"). */
+private fun Modifier.riseSleepFace(): Modifier =
+    background(RiseWear.background).riseGlow(RiseWear.plumGlow, centerY = 1.1f, radius = 0.6f)
+
 @Composable
 private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
@@ -111,18 +144,16 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
     val recommended = SleepPlanner.recommendedCycles(summary)
 
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    Scaffold(timeText = { RiseTimeText() }, modifier = Modifier.riseSleepFace()) {
         ScalingLazyColumn(
             state = listState,
-            // Wie im Editor: Mit sichtbarem Picker gehört die Krone der
+            // Wie im Editor: Mit sichtbarer Walze gehört die Krone der
             // Uhrzeit, sonst scrollt sie die Liste.
             modifier = Modifier.fillMaxSize().let {
                 if (mode == PlannerMode.WAKE_UP_AT) it.rotaryTimePicker(timeState) else it.rotaryScroll(listState)
             },
         ) {
-            item { ListHeader { Text(stringResource(CoreR.string.core_planner_title)) } }
-            // Betriebsart als zwei Auswahl-Chips mit Radio-Knopf — dieselbe
-            // Chip-Familie wie die Wecker mit ihrem Schalter.
+            item { ListHeader { Eyebrow(stringResource(CoreR.string.core_planner_title)) } }
             items(listOf(PlannerMode.SLEEP_NOW, PlannerMode.WAKE_UP_AT)) { option ->
                 ToggleChip(
                     checked = mode == option,
@@ -136,6 +167,7 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                         )
                     },
                     toggleControl = { RadioButton(selected = mode == option) },
+                    colors = riseToggleChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -147,7 +179,8 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                     Text(
                         SleepPlannerFormat.average(context, summary) + "\n" +
                             SleepPlannerFormat.debt(context, summary),
-                        style = MaterialTheme.typography.caption3,
+                        style = MaterialTheme.typography.caption2,
+                        color = RiseWear.amber,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     )
@@ -155,7 +188,7 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             }
             item {
                 ListHeader {
-                    Text(
+                    Eyebrow(
                         stringResource(
                             if (mode == PlannerMode.SLEEP_NOW) CoreR.string.core_planner_waketimes_header
                             else CoreR.string.core_planner_bedtimes_header
@@ -194,7 +227,16 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                                 )
                             )
                         },
-                        toggleControl = { Switch(checked = true) },
+                        toggleControl = {
+                            Switch(
+                                checked = true,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = RiseWear.amber,
+                                    checkedTrackColor = RiseWear.amber.copy(alpha = 0.5f),
+                                ),
+                            )
+                        },
+                        colors = riseToggleChipColors(),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -204,7 +246,7 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                     onClick = onOpenSettings,
                     label = { Text(stringResource(CoreR.string.core_planner_settings)) },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    colors = ChipDefaults.secondaryChipColors(),
+                    colors = riseChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -212,6 +254,7 @@ private fun PlannerScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
                 Text(
                     stringResource(CoreR.string.core_planner_disclaimer),
                     style = MaterialTheme.typography.caption3,
+                    color = RiseWear.textFaint,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
@@ -236,9 +279,9 @@ private fun scheduleReminder(context: Context, bedtime: SleepSuggestion, setting
 }
 
 /**
- * Ein Vorschlag als Chip — Farben wie „Neuer Wecker". Die Empfehlung steht
- * als ⭐ vorn in der Zweitzeile, so wie 😴 die Schlafdauer in der Liste
- * markiert. Vergangene Schlafenszeiten sind ausgegraut und nicht antippbar.
+ * Ein Vorschlag wie ein Wecker in der Liste: Uhrzeit in Serif, darunter
+ * Zyklen und Dauer gedimmt. Die Empfehlung steht mit ⭐ in Bernstein in der
+ * Zweitzeile. Vergangene Schlafenszeiten sind ausgegraut und nicht antippbar.
  */
 @Composable
 private fun SuggestionChip(suggestion: SleepSuggestion, recommended: Boolean, onClick: () -> Unit) {
@@ -247,11 +290,18 @@ private fun SuggestionChip(suggestion: SleepSuggestion, recommended: Boolean, on
     Chip(
         onClick = onClick,
         enabled = suggestion.available,
-        label = { Text(SleepPlannerFormat.time(context, suggestion.time)) },
+        label = {
+            Text(
+                SleepPlannerFormat.time(context, suggestion.time),
+                style = SerifNumerals,
+                fontSize = 22.sp,
+                lineHeight = 24.sp,
+            )
+        },
         secondaryLabel = {
             Text(if (recommended) stringResource(R.string.planner_recommended_prefix, details) else details)
         },
-        colors = ChipDefaults.secondaryChipColors(),
+        colors = riseChipColors(secondaryContent = if (recommended) RiseWear.amber else RiseWear.textDim),
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -260,7 +310,7 @@ private fun SuggestionChip(suggestion: SleepSuggestion, recommended: Boolean, on
 
 /**
  * Einstellungen auf der Uhr: Ein Tipp schaltet zum nächsten Wert weiter.
- * Große Chips statt Picker — drei Werte mit wenigen Stufen brauchen keinen.
+ * Große Einträge statt Picker — drei Werte mit wenigen Stufen brauchen keinen.
  */
 @Composable
 private fun PlannerSettingsScreen(onBack: () -> Unit) {
@@ -272,12 +322,12 @@ private fun PlannerSettingsScreen(onBack: () -> Unit) {
 
     fun update(new: SleepSettings) = SleepPlannerStore.setSettings(context, new)
 
-    Scaffold(timeText = { TimeText() }) {
+    Scaffold(timeText = { RiseTimeText() }, modifier = Modifier.riseSleepFace()) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().rotaryScroll(listState),
         ) {
-            item { ListHeader { Text(stringResource(CoreR.string.core_planner_settings)) } }
+            item { ListHeader { Eyebrow(stringResource(CoreR.string.core_planner_settings)) } }
             item {
                 SettingChip(
                     label = stringResource(CoreR.string.core_planner_setting_cycle),
@@ -323,7 +373,7 @@ private fun SettingChip(label: String, value: String, onClick: () -> Unit) {
         onClick = onClick,
         label = { Text(label) },
         secondaryLabel = { Text(value) },
-        colors = ChipDefaults.secondaryChipColors(),
+        colors = riseChipColors(secondaryContent = RiseWear.amber),
         modifier = Modifier.fillMaxWidth(),
     )
 }

@@ -7,9 +7,9 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,17 +29,18 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,9 +53,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.HealthConnectClient
@@ -67,6 +71,7 @@ import com.watchalarm.core.SleepPlannerStore
 import com.watchalarm.core.SleepSettings
 import com.watchalarm.core.SleepSuggestion
 import com.watchalarm.core.SleepSummary
+import java.text.DateFormatSymbols
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -76,18 +81,18 @@ import kotlinx.coroutines.launch
  * Schlafplaner am Handy — dieselbe Rechnung ([SleepPlanner]) und dieselben
  * Texte ([SleepPlannerFormat]) wie auf der Uhr.
  *
- * Gestaltet wie der Wecker-Editor und die Alarmliste, mit denselben
- * Bausteinen: Scaffold mit Zurück-Pfeil, scrollende Spalte mit 20dp Abstand,
- * Abschnittstitel in titleSmall, FilterChips zur Auswahl, TimePicker mittig,
- * Vorschläge als Karten wie die Wecker-Karten (große, leichte Uhrzeit,
- * Hervorhebung in Primärfarbe wie die 😴-Schlafdauer). Kein Dialog: Ein
- * gestellter Wecker führt wie „Speichern" zurück in die Liste.
+ * Im Rise-Design wie Editor und Liste: Titel in Instrument Serif,
+ * Abschnitte mit [Eyebrow], Chips in Creme bzw. Tinte, die Drehwalze für die
+ * Weckzeit, Vorschläge als weiße Karten mit Serif-Uhrzeit, Akzent in
+ * Terrakotta. Kein Dialog: Ein gestellter Wecker führt wie „Speichern"
+ * zurück in die Liste.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun SleepPlannerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val colors = Rise.colors
     BackHandler(onBack = onBack)
 
     var mode by rememberSaveable { mutableStateOf(PlannerMode.SLEEP_NOW) }
@@ -108,14 +113,12 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
         scope.launch { healthStatus = SleepHealth.refresh(context) }
     }
 
-    // Wie im Editor: TimePicker direkt auf der Seite, Uhrzeitformat vom Gerät.
+    // Weckzeit über dieselbe Walze wie im Editor, im Uhrzeitformat des Geräts.
+    val is24Hour = remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
     val initialWake = remember { SleepPlannerStore.getWakeTime(context) }
-    val timeState = rememberTimePickerState(
-        initialHour = initialWake.hour,
-        initialMinute = initialWake.minute,
-        is24Hour = android.text.format.DateFormat.is24HourFormat(context),
-    )
-    val wakeTime = LocalTime.of(timeState.hour, timeState.minute)
+    var wakeHour by rememberSaveable { mutableIntStateOf(initialWake.hour) }
+    var wakeMinute by rememberSaveable { mutableIntStateOf(initialWake.minute) }
+    val wakeTime = LocalTime.of(wakeHour, wakeMinute)
     LaunchedEffect(wakeTime) { SleepPlannerStore.setWakeTime(context, wakeTime) }
 
     val nowZoned = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
@@ -126,9 +129,22 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
     val recommended = SleepPlanner.recommendedCycles(summary)
 
     Scaffold(
+        containerColor = colors.surface,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(CoreR.string.core_planner_title)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.surface,
+                    scrolledContainerColor = colors.surface,
+                    titleContentColor = colors.ink,
+                    navigationIconContentColor = colors.ink,
+                ),
+                title = {
+                    Text(
+                        stringResource(CoreR.string.core_planner_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontSize = 30.sp,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -142,10 +158,10 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            // Betriebsart als FilterChips, wie die Auswahlen im Editor.
+            // Betriebsart als Chips wie die Auswahlen im Editor.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -154,17 +170,49 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
                     PlannerMode.SLEEP_NOW to CoreR.string.core_planner_mode_now,
                     PlannerMode.WAKE_UP_AT to CoreR.string.core_planner_mode_wake,
                 ).forEach { (option, label) ->
-                    FilterChip(
-                        selected = mode == option,
-                        onClick = { mode = option },
-                        label = { Text(stringResource(label)) },
-                    )
+                    RiseChip(selected = mode == option, onClick = { mode = option }, label = stringResource(label))
                 }
             }
 
             if (mode == PlannerMode.WAKE_UP_AT) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    TimePicker(state = timeState)
+                DrumFrame {
+                    val amPmLabels = remember { DateFormatSymbols.getInstance().amPmStrings }
+                    DrumColumn(
+                        count = if (is24Hour) 24 else 12,
+                        initial = if (is24Hour) wakeHour else wakeHour % 12,
+                        onSelected = { selected ->
+                            wakeHour = if (is24Hour) selected else selected + if (wakeHour >= 12) 12 else 0
+                        },
+                        contentDescription = stringResource(R.string.picker_hour),
+                        label = { index ->
+                            if (is24Hour) "%02d".format(index)
+                            else if (index == 0) "12" else "$index"
+                        },
+                    )
+                    Text(
+                        ":",
+                        fontFamily = InstrumentSerif,
+                        fontSize = with(LocalDensity.current) { 34.dp.toSp() },
+                        color = colors.accent,
+                    )
+                    DrumColumn(
+                        count = 60,
+                        initial = wakeMinute,
+                        onSelected = { wakeMinute = it },
+                        contentDescription = stringResource(R.string.picker_minute),
+                        label = { "%02d".format(it) },
+                    )
+                    if (!is24Hour) {
+                        DrumColumn(
+                            count = 2,
+                            initial = if (wakeHour >= 12) 1 else 0,
+                            onSelected = { pm -> wakeHour = wakeHour % 12 + if (pm == 1) 12 else 0 },
+                            contentDescription = stringResource(R.string.picker_am_pm),
+                            label = { amPmLabels.getOrElse(it) { if (it == 0) "AM" else "PM" } },
+                            wrap = false,
+                            weight = 0.9f,
+                        )
+                    }
                 }
             }
 
@@ -178,12 +226,11 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
+                Eyebrow(
                     stringResource(
                         if (mode == PlannerMode.SLEEP_NOW) CoreR.string.core_planner_waketimes_header
                         else CoreR.string.core_planner_bedtimes_header
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
+                    )
                 )
                 suggestions.forEach { suggestion ->
                     SuggestionCard(
@@ -222,10 +269,10 @@ internal fun SleepPlannerScreen(onBack: () -> Unit) {
             Text(
                 stringResource(CoreR.string.core_planner_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.ink3,
             )
 
-            HorizontalDivider()
+            HorizontalDivider(color = colors.lineB)
 
             PlannerSettings(
                 settings = settings,
@@ -262,11 +309,47 @@ private fun rememberPlannerStoreVersion(): Int {
     return version
 }
 
+/** Chip wie im Editor: Creme, gewählt in Tinte, rund, ohne Rahmen. */
+@Composable
+private fun RiseChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    val colors = Rise.colors
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = colors.chip,
+            labelColor = colors.ink2,
+            selectedContainerColor = colors.btnBg,
+            selectedLabelColor = colors.btnFg,
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = Color.Transparent,
+            selectedBorderColor = Color.Transparent,
+        ),
+        shape = CircleShape,
+    )
+}
+
+/** Weiße Karte mit feiner Linie, wie die Wecker-Karten der Liste. */
+@Composable
+private fun RiseCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val colors = Rise.colors
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.card, contentColor = colors.ink),
+        border = BorderStroke(1.dp, colors.lineA),
+    ) { content() }
+}
+
 /**
- * Zusammenfassung der letzten Nächte in Primärfarbe, wie die Schlafdauer
+ * Zusammenfassung der letzten Nächte in Akzentfarbe, wie die Schlafdauer
  * auf den Wecker-Karten. Solange es keine gibt: der Hinweis zum Verbinden,
- * gestaltet wie der Vollbild-Hinweis der Alarmliste (secondaryContainer,
- * bodyMedium, 16dp). Ohne Daten und nach „Nicht jetzt" erscheint nichts.
+ * gestaltet wie der Vollbild-Hinweis der Liste (Creme-Karte, 22dp).
+ * Ohne Daten und nach „Nicht jetzt" erscheint nichts.
  */
 @Composable
 private fun SleepDataSection(
@@ -278,39 +361,44 @@ private fun SleepDataSection(
     onInstall: () -> Unit,
 ) {
     val context = LocalContext.current
+    val colors = Rise.colors
+    val needsInstall = status == SleepHealth.Status.NEEDS_INSTALL
     when {
         summary != null -> Column {
             Text(
                 stringResource(R.string.planner_summary, SleepPlannerFormat.average(context, summary)),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = colors.accent,
             )
             Text(
                 SleepPlannerFormat.debt(context, summary),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = colors.ink2,
             )
         }
         promptDismissed -> Unit
-        status == SleepHealth.Status.NOT_GRANTED || status == SleepHealth.Status.NEEDS_INSTALL -> Card(
+        status == SleepHealth.Status.NOT_GRANTED || needsInstall -> Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = if (status == SleepHealth.Status.NEEDS_INSTALL) onInstall else onConnect),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                .clickable(onClick = if (needsInstall) onInstall else onConnect),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.chip, contentColor = colors.ink2),
         ) {
             // Die Begründung steht hier, *bevor* der Systemdialog kommt.
             Text(
                 stringResource(R.string.health_explanation),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp),
             )
             Row(modifier = Modifier.fillMaxWidth().padding(end = 8.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismissPrompt) { Text(stringResource(R.string.health_not_now)) }
-                if (status == SleepHealth.Status.NEEDS_INSTALL) {
-                    TextButton(onClick = onInstall) { Text(stringResource(R.string.health_install)) }
-                } else {
-                    TextButton(onClick = onConnect) { Text(stringResource(R.string.health_connect)) }
+                TextButton(onClick = onDismissPrompt) {
+                    Text(stringResource(R.string.health_not_now), color = colors.ink2)
+                }
+                TextButton(onClick = if (needsInstall) onInstall else onConnect) {
+                    Text(
+                        stringResource(if (needsInstall) R.string.health_install else R.string.health_connect),
+                        color = colors.accent,
+                    )
                 }
             }
         }
@@ -319,32 +407,33 @@ private fun SleepDataSection(
 }
 
 /**
- * Ein Vorschlag, aufgebaut wie eine Wecker-Karte: große, leichte Uhrzeit,
- * darunter bodyMedium, Hervorhebung in Primärfarbe. Vergangene
- * Schlafenszeiten sehen aus wie ein ausgeschalteter Wecker und sind nicht
- * antippbar.
+ * Ein Vorschlag wie eine Wecker-Karte: Uhrzeit groß in Serif, Zyklen und
+ * Dauer darunter, die Empfehlung in Akzentfarbe. Vergangene Schlafenszeiten
+ * sehen aus wie ein ausgeschalteter Wecker und sind nicht antippbar.
  */
 @Composable
 private fun SuggestionCard(suggestion: SleepSuggestion, recommended: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = suggestion.available, onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
+    val colors = Rise.colors
+    RiseCard(modifier = Modifier.clickable(enabled = suggestion.available, onClick = onClick)) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 SleepPlannerFormat.time(context, suggestion.time),
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Light,
-                color = if (suggestion.available) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = SerifNumerals,
+                fontSize = 40.sp,
+                lineHeight = 42.sp,
+                color = if (suggestion.available) colors.ink else colors.ink3,
             )
-            Text(SleepPlannerFormat.details(context, suggestion), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                SleepPlannerFormat.details(context, suggestion),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.ink2,
+            )
             if (recommended) {
                 Text(
                     stringResource(R.string.planner_recommended, stringResource(CoreR.string.core_planner_recommended)),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = colors.accent,
                 )
             }
         }
@@ -354,10 +443,8 @@ private fun SuggestionCard(suggestion: SleepSuggestion, recommended: Boolean, on
 /** Gestellte Erinnerung — wie ein Wecker mit Schalter; aus = gelöscht. */
 @Composable
 private fun ReminderCard(time: String, onCancel: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
+    val colors = Rise.colors
+    RiseCard {
         Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -367,12 +454,20 @@ private fun ReminderCard(time: String, onCancel: () -> Unit) {
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
-            Switch(checked = true, onCheckedChange = { if (!it) onCancel() })
+            Switch(
+                checked = true,
+                onCheckedChange = { if (!it) onCancel() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.card,
+                    checkedTrackColor = colors.accent,
+                    checkedBorderColor = colors.accent,
+                ),
+            )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Einstellungen wie im Editor: Eyebrow und Chips pro Wert. */
 @Composable
 private fun PlannerSettings(
     settings: SleepSettings,
@@ -383,8 +478,13 @@ private fun PlannerSettings(
     onInstall: () -> Unit,
 ) {
     val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(stringResource(CoreR.string.core_planner_settings), style = MaterialTheme.typography.titleMedium)
+    val colors = Rise.colors
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Text(
+            stringResource(CoreR.string.core_planner_settings),
+            style = MaterialTheme.typography.headlineSmall,
+            color = colors.ink,
+        )
 
         SettingChoices(
             title = stringResource(CoreR.string.core_planner_setting_cycle),
@@ -409,7 +509,7 @@ private fun PlannerSettings(
         )
 
         Column {
-            Text(stringResource(R.string.health_section), style = MaterialTheme.typography.titleSmall)
+            Eyebrow(stringResource(R.string.health_section))
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -423,17 +523,19 @@ private fun PlannerSettings(
                         }
                     ),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = colors.ink2,
                     modifier = Modifier.weight(1f),
                 )
-                when (healthStatus) {
-                    SleepHealth.Status.GRANTED ->
-                        TextButton(onClick = onManage) { Text(stringResource(R.string.health_manage)) }
-                    SleepHealth.Status.NOT_GRANTED ->
-                        TextButton(onClick = onConnect) { Text(stringResource(R.string.health_connect)) }
-                    SleepHealth.Status.NEEDS_INSTALL ->
-                        TextButton(onClick = onInstall) { Text(stringResource(R.string.health_install)) }
-                    else -> Unit
+                val action: Pair<Int, () -> Unit>? = when (healthStatus) {
+                    SleepHealth.Status.GRANTED -> R.string.health_manage to onManage
+                    SleepHealth.Status.NOT_GRANTED -> R.string.health_connect to onConnect
+                    SleepHealth.Status.NEEDS_INSTALL -> R.string.health_install to onInstall
+                    else -> null
+                }
+                if (action != null) {
+                    TextButton(onClick = action.second) {
+                        Text(stringResource(action.first), color = colors.accent)
+                    }
                 }
             }
         }
@@ -450,18 +552,14 @@ private fun SettingChoices(
     onSelect: (Int) -> Unit,
 ) {
     Column {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+        Eyebrow(title)
         Spacer(Modifier.height(8.dp))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             choices.forEach { value ->
-                FilterChip(
-                    selected = selected == value,
-                    onClick = { onSelect(value) },
-                    label = { Text(label(value)) },
-                )
+                RiseChip(selected = selected == value, onClick = { onSelect(value) }, label = label(value))
             }
         }
     }

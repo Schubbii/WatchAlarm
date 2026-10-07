@@ -1,6 +1,14 @@
 package com.watchalarm.wear
 
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -107,6 +115,37 @@ private const val COLUMN_AM_PM = 2
 
 /** Höhe der Picker-Reihe. Sie zeigt drei Optionen übereinander. */
 private val PICKER_ROW_HEIGHT = 100.dp
+
+/**
+ * Höhe einer Option. Fest statt aus der Schrift gemessen: So zeigt die Reihe
+ * genau die drei Optionen, von denen [rotaryTimePicker] beim Umrechnen
+ * ausgeht — auch wenn die gewählte Ziffer größer ist als ihre Nachbarn.
+ */
+private val PICKER_OPTION_HEIGHT = PICKER_ROW_HEIGHT / 3
+
+/**
+ * Eine Ziffer der Walze: die gewählte groß in Bernstein, die Nachbarn klein
+ * und gedimmt. Größen in dp, weil die Optionshöhe fest ist — bei großer
+ * Systemschrift würden sich die Ziffern sonst überlappen.
+ */
+@Composable
+private fun DrumDigit(
+    text: String,
+    selected: Boolean,
+    selectedSize: Dp = 28.dp,
+    otherSize: Dp = 16.dp,
+) {
+    val size = with(LocalDensity.current) { (if (selected) selectedSize else otherSize).toSp() }
+    Box(modifier = Modifier.height(PICKER_OPTION_HEIGHT), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            style = SerifNumerals,
+            fontSize = size,
+            color = if (selected) RiseWear.amber else Color.White.copy(alpha = 0.28f),
+            maxLines = 1,
+        )
+    }
+}
 
 /** Aufsummierter Rotary-Weg. Bewusst kein State: niemand liest ihn beim Zeichnen. */
 private class RotaryAccumulator {
@@ -236,48 +275,84 @@ private fun Modifier.claimRotaryOnTouch(onClaim: () -> Unit): Modifier =
         }
     }
 
-/** Stunde : Minute (: AM/PM) als Picker-Reihe. */
+/**
+ * Uhrzeit-Walze aus dem Rise-Design ("Time picker"): eingelassene Fläche,
+ * Auswahlfeld mit Bernsteinrand, Ziffern oben und unten ausgeblendet. Reine
+ * Kulisse hinter den Pickern — Höhe und Krone bleiben unverändert.
+ * Schmaler als die Zeile: Auf dem runden Display lagen die oberen Ecken
+ * sonst unter der Lünette. Von Editor und Schlafplaner gemeinsam genutzt.
+ */
 @Composable
 internal fun WatchTimePickerRow(state: WatchTimeState) {
     val amPmLabels = remember { DateFormatSymbols.getInstance().amPmStrings }
     val pickerWidth = if (state.is24Hour) 60.dp else 44.dp
-    Row(
-        modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(0.9f)
+            .height(PICKER_ROW_HEIGHT)
+            .clip(RoundedCornerShape(20.dp))
+            .background(RiseWear.drum),
+        contentAlignment = Alignment.Center,
     ) {
-        Picker(
-            state = state.hour,
-            contentDescription = stringResource(R.string.picker_hour),
-            onSelected = { state.rotaryColumn = COLUMN_HOUR },
-            modifier = Modifier.width(pickerWidth).fillMaxSize()
-                .claimRotaryOnTouch { state.rotaryColumn = COLUMN_HOUR },
-        ) { index ->
-            Text(
-                if (state.is24Hour) "%02d".format(index)
-                else if (index == 0) "12" else "$index",
-                fontSize = 28.sp,
-            )
-        }
-        Text(":", fontSize = 28.sp)
-        Picker(
-            state = state.minute,
-            contentDescription = stringResource(R.string.picker_minute),
-            onSelected = { state.rotaryColumn = COLUMN_MINUTE },
-            modifier = Modifier.width(pickerWidth).fillMaxSize()
-                .claimRotaryOnTouch { state.rotaryColumn = COLUMN_MINUTE },
-        ) { index ->
-            Text("%02d".format(index), fontSize = 28.sp)
-        }
-        if (!state.is24Hour) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 6.dp)
+                .fillMaxWidth()
+                .height(PICKER_OPTION_HEIGHT + 4.dp)
+                .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(11.dp))
+                .border(1.dp, RiseWear.amber.copy(alpha = 0.4f), RoundedCornerShape(11.dp)),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Picker(
-                state = state.amPm,
-                contentDescription = stringResource(R.string.picker_am_pm),
-                onSelected = { state.rotaryColumn = COLUMN_AM_PM },
-                modifier = Modifier.width(48.dp).fillMaxSize()
-                    .claimRotaryOnTouch { state.rotaryColumn = COLUMN_AM_PM },
+                state = state.hour,
+                contentDescription = stringResource(R.string.picker_hour),
+                onSelected = { state.rotaryColumn = COLUMN_HOUR },
+                gradientColor = RiseWear.drum,
+                modifier = Modifier.width(pickerWidth).fillMaxSize()
+                    .claimRotaryOnTouch { state.rotaryColumn = COLUMN_HOUR },
             ) { index ->
-                Text(amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" }, fontSize = 20.sp)
+                DrumDigit(
+                    if (state.is24Hour) "%02d".format(index)
+                    else if (index == 0) "12" else "$index",
+                    selected = index == state.hour.selectedOption,
+                )
+            }
+            Text(
+                ":",
+                fontFamily = InstrumentSerif,
+                fontSize = 22.sp,
+                color = RiseWear.amber.copy(alpha = 0.7f),
+            )
+            Picker(
+                state = state.minute,
+                contentDescription = stringResource(R.string.picker_minute),
+                onSelected = { state.rotaryColumn = COLUMN_MINUTE },
+                gradientColor = RiseWear.drum,
+                modifier = Modifier.width(pickerWidth).fillMaxSize()
+                    .claimRotaryOnTouch { state.rotaryColumn = COLUMN_MINUTE },
+            ) { index ->
+                DrumDigit("%02d".format(index), selected = index == state.minute.selectedOption)
+            }
+            if (!state.is24Hour) {
+                Picker(
+                    state = state.amPm,
+                    contentDescription = stringResource(R.string.picker_am_pm),
+                    onSelected = { state.rotaryColumn = COLUMN_AM_PM },
+                    gradientColor = RiseWear.drum,
+                    modifier = Modifier.width(48.dp).fillMaxSize()
+                        .claimRotaryOnTouch { state.rotaryColumn = COLUMN_AM_PM },
+                ) { index ->
+                    DrumDigit(
+                        amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" },
+                        selected = index == state.amPm.selectedOption,
+                        selectedSize = 18.dp,
+                        otherSize = 13.dp,
+                    )
+                }
             }
         }
     }
