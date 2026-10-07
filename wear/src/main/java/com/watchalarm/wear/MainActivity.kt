@@ -7,12 +7,15 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -36,9 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
@@ -46,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -67,8 +74,9 @@ import androidx.wear.compose.material.PickerState
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.SplitToggleChip
 import androidx.wear.compose.material.Switch
+import androidx.wear.compose.material.SwitchDefaults
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.ToggleChipDefaults
 import androidx.wear.compose.material.rememberPickerState
 import com.watchalarm.core.Alarm
 import com.watchalarm.core.AlarmStore
@@ -97,7 +105,7 @@ class MainActivity : ComponentActivity() {
         }
         AlarmSync.syncNow(this)
         setContent {
-            MaterialTheme {
+            RiseWearTheme {
                 WearApp()
             }
         }
@@ -163,6 +171,37 @@ private const val COLUMN_AM_PM = 2
 
 /** Höhe der Picker-Reihe. Sie zeigt drei Optionen übereinander. */
 private val PICKER_ROW_HEIGHT = 100.dp
+
+/**
+ * Höhe einer Option. Fest statt aus der Schrift gemessen: So zeigt die Reihe
+ * genau die drei Optionen, von denen [rotaryTimePicker] beim Umrechnen
+ * ausgeht — auch wenn die gewählte Ziffer größer ist als ihre Nachbarn.
+ */
+private val PICKER_OPTION_HEIGHT = PICKER_ROW_HEIGHT / 3
+
+/**
+ * Eine Ziffer der Walze: die gewählte groß in Bernstein, die Nachbarn klein
+ * und gedimmt. Größen in dp, weil die Optionshöhe fest ist — bei großer
+ * Systemschrift würden sich die Ziffern sonst überlappen.
+ */
+@Composable
+private fun DrumDigit(
+    text: String,
+    selected: Boolean,
+    selectedSize: Dp = 28.dp,
+    otherSize: Dp = 16.dp,
+) {
+    val size = with(LocalDensity.current) { (if (selected) selectedSize else otherSize).toSp() }
+    Box(modifier = Modifier.height(PICKER_OPTION_HEIGHT), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            style = SerifNumerals,
+            fontSize = size,
+            color = if (selected) RiseWear.amber else Color.White.copy(alpha = 0.28f),
+            maxLines = 1,
+        )
+    }
+}
 
 /** Aufsummierter Rotary-Weg. Bewusst kein State: niemand liest ihn beim Zeichnen. */
 private class RotaryAccumulator {
@@ -332,19 +371,27 @@ private fun WatchList(
     val context = LocalContext.current
     val now = rememberCurrentMinute()
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    // "Sleep face" des Entwurfs: fast schwarz, Pflaumenschimmer von unten.
+    Scaffold(
+        timeText = { RiseTimeText() },
+        modifier = Modifier
+            .background(RiseWear.background)
+            .riseGlow(RiseWear.plumGlow, centerY = 1.1f, radius = 0.6f),
+    ) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().rotaryScroll(listState),
         ) {
-            item { ListHeader { Text(stringResource(R.string.title_alarms)) } }
+            item { ListHeader { Eyebrow(stringResource(R.string.title_alarms)) } }
             if (ringingId != null) {
                 item {
                     Chip(
                         onClick = { onOpenRinging(ringingId) },
                         label = { Text(stringResource(R.string.alarm_active_open)) },
-                        colors = ChipDefaults.primaryChipColors(
-                            backgroundColor = MaterialTheme.colors.error,
+                        colors = ChipDefaults.gradientBackgroundChipColors(
+                            startBackgroundColor = RiseWear.sunLight,
+                            endBackgroundColor = RiseWear.sunDeep,
+                            contentColor = RiseWear.buttonInk,
                         ),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -372,9 +419,33 @@ private fun WatchList(
                     checked = alarm.enabled,
                     onCheckedChange = { onToggle(alarm, it) },
                     onClick = { onEdit(alarm) },
-                    label = { Text(alarm.formattedTime(context)) },
+                    label = {
+                        Text(
+                            alarm.formattedTime(context),
+                            style = SerifNumerals,
+                            fontSize = 22.sp,
+                            lineHeight = 24.sp,
+                            color = if (alarm.enabled) Color.White else RiseWear.textDim,
+                        )
+                    },
                     secondaryLabel = { if (secondary.isNotBlank()) Text(secondary) },
-                    toggleControl = { Switch(checked = alarm.enabled) },
+                    toggleControl = {
+                        Switch(
+                            checked = alarm.enabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = RiseWear.amber,
+                                checkedTrackColor = RiseWear.amber.copy(alpha = 0.5f),
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                            ),
+                        )
+                    },
+                    colors = ToggleChipDefaults.splitToggleChipColors(
+                        backgroundColor = RiseWear.item,
+                        contentColor = Color.White,
+                        secondaryContentColor = RiseWear.textDim,
+                        splitBackgroundOverlayColor = Color.White.copy(alpha = 0.04f),
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -383,7 +454,11 @@ private fun WatchList(
                     onClick = onAdd,
                     label = { Text(stringResource(R.string.new_alarm)) },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    colors = ChipDefaults.secondaryChipColors(),
+                    colors = ChipDefaults.chipColors(
+                        backgroundColor = RiseWear.item,
+                        contentColor = Color.White,
+                        iconColor = RiseWear.amber,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -391,6 +466,7 @@ private fun WatchList(
                 Text(
                     stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
                     style = MaterialTheme.typography.caption3,
+                    color = RiseWear.textFaint,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
@@ -437,7 +513,7 @@ private fun WatchEditor(
     var rotaryColumn by remember { mutableStateOf(COLUMN_HOUR) }
 
     val listState = rememberScalingLazyListState()
-    Scaffold(timeText = { TimeText() }) {
+    Scaffold(timeText = { RiseTimeText() }, modifier = Modifier.background(RiseWear.background)) {
         ScalingLazyColumn(
             state = listState,
             // Kein rotaryScroll: Auf diesem Screen gehört die Krone den
@@ -454,7 +530,7 @@ private fun WatchEditor(
         ) {
             item {
                 ListHeader {
-                    Text(
+                    Eyebrow(
                         stringResource(
                             if (initial == null) R.string.new_alarm else R.string.title_edit_alarm
                         )
@@ -462,43 +538,79 @@ private fun WatchEditor(
                 }
             }
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
+                // Die Walze des Entwurfs ("Time picker"): eingelassene Fläche,
+                // Auswahlfeld mit Bernsteinrand, Ziffern oben und unten
+                // ausgeblendet. Reine Kulisse hinter den Pickern — Höhe und
+                // Krone bleiben genau wie vorher.
+                // Schmaler als die Zeile: Auf dem runden Display lagen die
+                // oberen Ecken sonst unter der Lünette.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(PICKER_ROW_HEIGHT)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(RiseWear.drum),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Picker(
-                        state = hourState,
-                        contentDescription = stringResource(R.string.picker_hour),
-                        onSelected = { rotaryColumn = COLUMN_HOUR },
-                        modifier = Modifier.width(pickerWidth).fillMaxSize()
-                            .claimRotaryOnTouch { rotaryColumn = COLUMN_HOUR },
-                    ) { index ->
-                        Text(
-                            if (is24Hour) "%02d".format(index)
-                            else if (index == 0) "12" else "$index",
-                            fontSize = 28.sp,
-                        )
-                    }
-                    Text(":", fontSize = 28.sp)
-                    Picker(
-                        state = minuteState,
-                        contentDescription = stringResource(R.string.picker_minute),
-                        onSelected = { rotaryColumn = COLUMN_MINUTE },
-                        modifier = Modifier.width(pickerWidth).fillMaxSize()
-                            .claimRotaryOnTouch { rotaryColumn = COLUMN_MINUTE },
-                    ) { index ->
-                        Text("%02d".format(index), fontSize = 28.sp)
-                    }
-                    if (!is24Hour) {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 6.dp)
+                            .fillMaxWidth()
+                            .height(PICKER_OPTION_HEIGHT + 4.dp)
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(11.dp))
+                            .border(1.dp, RiseWear.amber.copy(alpha = 0.4f), RoundedCornerShape(11.dp)),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(PICKER_ROW_HEIGHT),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Picker(
-                            state = amPmState,
-                            contentDescription = stringResource(R.string.picker_am_pm),
-                            onSelected = { rotaryColumn = COLUMN_AM_PM },
-                            modifier = Modifier.width(48.dp).fillMaxSize()
-                                .claimRotaryOnTouch { rotaryColumn = COLUMN_AM_PM },
+                            state = hourState,
+                            contentDescription = stringResource(R.string.picker_hour),
+                            onSelected = { rotaryColumn = COLUMN_HOUR },
+                            gradientColor = RiseWear.drum,
+                            modifier = Modifier.width(pickerWidth).fillMaxSize()
+                                .claimRotaryOnTouch { rotaryColumn = COLUMN_HOUR },
                         ) { index ->
-                            Text(amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" }, fontSize = 20.sp)
+                            DrumDigit(
+                                if (is24Hour) "%02d".format(index)
+                                else if (index == 0) "12" else "$index",
+                                selected = index == hourState.selectedOption,
+                            )
+                        }
+                        Text(
+                            ":",
+                            fontFamily = InstrumentSerif,
+                            fontSize = 22.sp,
+                            color = RiseWear.amber.copy(alpha = 0.7f),
+                        )
+                        Picker(
+                            state = minuteState,
+                            contentDescription = stringResource(R.string.picker_minute),
+                            onSelected = { rotaryColumn = COLUMN_MINUTE },
+                            gradientColor = RiseWear.drum,
+                            modifier = Modifier.width(pickerWidth).fillMaxSize()
+                                .claimRotaryOnTouch { rotaryColumn = COLUMN_MINUTE },
+                        ) { index ->
+                            DrumDigit("%02d".format(index), selected = index == minuteState.selectedOption)
+                        }
+                        if (!is24Hour) {
+                            Picker(
+                                state = amPmState,
+                                contentDescription = stringResource(R.string.picker_am_pm),
+                                onSelected = { rotaryColumn = COLUMN_AM_PM },
+                                gradientColor = RiseWear.drum,
+                                modifier = Modifier.width(48.dp).fillMaxSize()
+                                    .claimRotaryOnTouch { rotaryColumn = COLUMN_AM_PM },
+                            ) { index ->
+                                DrumDigit(
+                                    amPmLabels.getOrElse(index) { if (index == 0) "AM" else "PM" },
+                                    selected = index == amPmState.selectedOption,
+                                    selectedSize = 18.dp,
+                                    otherSize = 13.dp,
+                                )
+                            }
                         }
                     }
                 }
@@ -524,6 +636,10 @@ private fun WatchEditor(
                                 )
                             )
                         },
+                        colors = ButtonDefaults.primaryButtonColors(
+                            backgroundColor = RiseWear.amber,
+                            contentColor = RiseWear.buttonInk,
+                        ),
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.save))
                     }
@@ -531,7 +647,10 @@ private fun WatchEditor(
                         Spacer(Modifier.width(12.dp))
                         Button(
                             onClick = { onDelete(initial) },
-                            colors = ButtonDefaults.secondaryButtonColors(),
+                            colors = ButtonDefaults.secondaryButtonColors(
+                                backgroundColor = RiseWear.item,
+                                contentColor = Color.White,
+                            ),
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
                         }
@@ -542,6 +661,7 @@ private fun WatchEditor(
                 Text(
                     stringResource(R.string.editor_hint),
                     style = MaterialTheme.typography.caption3,
+                    color = RiseWear.textDim,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )

@@ -8,8 +8,19 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,21 +28,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,6 +76,12 @@ class AlarmActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Der Sonnenaufgang läuft hinter die Systemleisten; deren Symbole
+        // müssen auf dem dunklen oberen Rand hell sein.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
 
         applyLockScreenFlags()
@@ -73,11 +93,9 @@ class AlarmActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    val alarm by alarmState
-                    alarm?.let { RingScreen(it) }
-                }
+            RiseTheme {
+                val alarm by alarmState
+                alarm?.let { RingScreen(it) }
             }
         }
     }
@@ -157,60 +175,130 @@ class AlarmActivity : ComponentActivity() {
         runCatching { startService(intent) }
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun RingScreen(alarm: Alarm) {
         val snoozeAvailable = alarm.snoozeMinutes > 0 &&
             RuntimeStore.getSnoozeCount(this, alarm.id) < alarm.maxSnoozes
 
-        // Scrollbar und mit Mindest- statt Fixhöhen: im Querformat und auf
-        // kleinen Displays lagen Stopp/Schlummern sonst außerhalb des
-        // Bildschirms und der Alarm war nicht abstellbar.
-        Column(
+        // Sonnenaufgang aus dem Entwurf ("04 — Wake"): Verlauf von Pflaume zu
+        // Pfirsich, Welle in der Mitte, die Knöpfe unten.
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 32.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                alarm.formattedTime(this@AlarmActivity),
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-            )
-            if (alarm.label.isNotBlank()) {
-                Text(
-                    alarm.label,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            Spacer(Modifier.height(40.dp))
-
-            Button(
-                onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
-            ) {
-                Text(stringResource(R.string.stop), fontSize = 20.sp)
-            }
-
-            if (snoozeAvailable) {
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = { sendServiceAction(AlarmService.ACTION_SNOOZE) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.snooze_with_duration, alarm.snoozeMinutes),
-                        fontSize = 18.sp,
+                .background(
+                    Brush.verticalGradient(
+                        0f to RiseFixed.sunriseTop,
+                        0.88f to RiseFixed.sunriseBottom,
                     )
+                ),
+        ) {
+            // Scrollbar und mit Mindest- statt Fixhöhen: im Querformat und auf
+            // kleinen Displays lagen Stopp/Schlummern sonst außerhalb des
+            // Bildschirms und der Alarm war nicht abstellbar.
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = maxHeight)
+                    .fillMaxWidth()
+                    .systemBarsPadding()
+                    .padding(horizontal = 22.dp, vertical = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Spacer(Modifier.height(0.dp))
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    RiseRipple(
+                        ringColor = Color.White.copy(alpha = 0.5f),
+                        dotColor = Color.White.copy(alpha = 0.9f),
+                        modifier = Modifier.size(96.dp),
+                    )
+                    Spacer(Modifier.height(22.dp))
+                    Text(
+                        alarm.formattedTime(this@AlarmActivity),
+                        fontFamily = InstrumentSerif,
+                        fontSize = 66.sp,
+                        lineHeight = 68.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                    )
+                    if (alarm.label.isNotBlank()) {
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            alarm.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.78f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.padding(top = 32.dp)) {
+                    Button(
+                        onClick = { sendServiceAction(AlarmService.ACTION_DISMISS) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RiseFixed.wakeButton,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.stop), fontSize = 16.sp)
+                    }
+
+                    if (snoozeAvailable) {
+                        Spacer(Modifier.height(9.dp))
+                        Button(
+                            onClick = { sendServiceAction(AlarmService.ACTION_SNOOZE) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.3f),
+                                contentColor = RiseFixed.wakeButtonSoftText,
+                            ),
+                        ) {
+                            Text(
+                                stringResource(R.string.snooze_with_duration, alarm.snoozeMinutes),
+                                fontSize = 16.sp,
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/** CSS `ease-out`, wie im Entwurf. */
+private val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
+
+/**
+ * Die "Welle" des Entwurfs: zwei Ringe, die versetzt aus der Mitte wachsen
+ * und dabei verblassen (CSS riseRipple: 3,4 s, Skalierung 0,75 → 1,9,
+ * Deckkraft 0,32 → 0), darin ein ruhender Punkt.
+ */
+@Composable
+private fun RiseRipple(ringColor: Color, dotColor: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "ripple")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 3400, easing = LinearEasing)),
+        label = "rippleProgress",
+    )
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension / 2
+        val stroke = Stroke(width = 1.dp.toPx())
+        // Zweiter Ring 1,3 s hinter dem ersten.
+        listOf(progress, (progress - 1.3f / 3.4f).mod(1f)).forEach { phase ->
+            val eased = CssEaseOut.transform(phase)
+            drawCircle(
+                color = ringColor.copy(alpha = ringColor.alpha * 0.32f * (1f - eased)),
+                radius = radius * (0.75f + 1.15f * eased),
+                style = stroke,
+            )
+        }
+        // inset 26 px bei 96 px Kantenlänge
+        drawCircle(color = dotColor, radius = radius * (1f - 26f / 48f))
     }
 }

@@ -9,8 +9,8 @@
         <item name="android:windowBackground">@color/window_background</item>
     </style>
 
-    <!-- Der Klingel-Screen ist immer dunkel (nachts im Bett). -->
+    <!-- Der Klingel-Screen ist in beiden Modi gleich: der Sonnenaufgang. -->
     <style name="Theme.WatchAlarm.Ring" parent="Theme.WatchAlarm">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/ring_background</item>
     </style>
 </resources>

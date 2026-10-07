@@ -28,6 +28,9 @@
     <string name="section_ring_timeout">Auto-snooze after</string>
     <string name="section_ring_timeout_hint">If nobody reacts, the alarm snoozes by itself after this time instead of vibrating forever.</string>
     <string name="editor_hint">The watch vibrates, the phone shows the stop screen. You turn the alarm off on the phone.</string>
+    <string name="picker_hour">Hour</string>
+    <string name="picker_minute">Minute</string>
+    <string name="picker_am_pm">Before or after noon</string>
     <string name="save">Save</string>
 
     <!-- Klingel-Screen -->

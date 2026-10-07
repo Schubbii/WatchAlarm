@@ -25,6 +25,9 @@
     <string name="section_ring_timeout">Automatisch schlummern nach</string>
     <string name="section_ring_timeout_hint">Reagiert niemand, schlummert der Wecker nach dieser Zeit von selbst, statt endlos weiterzuvibrieren.</string>
     <string name="editor_hint">Die Uhr vibriert, das Handy zeigt den Stopp-Screen. Ausgeschaltet wird am Handy.</string>
+    <string name="picker_hour">Stunde</string>
+    <string name="picker_minute">Minute</string>
+    <string name="picker_am_pm">Vormittag oder Nachmittag</string>
     <string name="save">Speichern</string>
 
     <!-- Klingel-Screen -->
