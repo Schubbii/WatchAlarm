@@ -101,8 +101,8 @@ Store kein Weg vorbei, wenn man das Wireless Debugging loswerden will.
 
 ## CI
 
-`.github/workflows/build.yml` baut bei jedem Push Debug-APKs und lässt Lint
-laufen. Für signierte AABs (manuell per *Run workflow* oder über ein `v*`-Tag)
+`.github/workflows/build.yml` baut bei jedem Push installierbare Release-APKs
+(Artefakt `apks-zum-installieren`) und lässt Lint laufen. Für signierte AABs (manuell per *Run workflow* oder über ein `v*`-Tag)
 müssen diese Repository-Secrets gesetzt sein:
 
 | Secret | Inhalt |
